@@ -25,10 +25,10 @@
   (length (car matrix)))
 
 (defun gen-matrix (matrix exclude-row exclude-col)
-  (loop :for row :from 0 :to (1- (length matrix))
+  (loop :for row :from 0 :to (1- (row-len matrix))
         :if (/= exclude-row row)
           :collect
-          (loop :for col :from 0 :to (1- (length (car matrix)))
+          (loop :for col :from 0 :to (1- (col-len matrix))
                 :if (/= exclude-col col)
                   :collect (get-atom-matrix matrix row col))))
 
