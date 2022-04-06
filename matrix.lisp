@@ -4,13 +4,10 @@
 (defun get-row-matrix (matrix row)
   (nth row matrix))
 
-(defun get-col-matrix (matrix col)
-  (mapcar (lambda (x) (nth col x)) matrix))
-
 (defun row->col-matrix (matrix)
   "Flips rows and columns"
-  (loop :for x :from 0 :to (1- (length (car matrix)))
-        :collect (get-col-matrix matrix x)))
+  (loop :for col :from 0 :to (1- (length (car matrix)))
+        :collect (mapcar (lambda (x) (nth col x)) matrix)))
 
 (defun square-matrix? (matrix)
   (= (length matrix) (length (car matrix))))
