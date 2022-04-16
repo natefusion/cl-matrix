@@ -54,12 +54,12 @@
   (cons '+ (mapcar (lambda (x y) `(* ,x ,y)) vec1 vec2)))
 
 (defun multiply-matrix (matrix1 matrix2)
-  (cond ((= (col-len matrix1)) (row-len matrix2)
-         (loop :for row :in matrix1
-               :collect
-               (loop :for col :in (row->col-matrix matrix2)
-                     :collect (.* row col))))
-        (t nil)))
+  (if (= (col-len matrix1) (row-len matrix2))
+      (loop :for row :in matrix1
+            :collect
+            (loop :for col :in (row->col-matrix matrix2)
+                  :collect (.* row col)))
+      nil))
 
 (defun get-inverse-matrix (matrix)
   (cond ((nxn-matrix? matrix 1) (get-atom-matrix matrix 0 0))
