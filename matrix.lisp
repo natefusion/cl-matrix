@@ -7,7 +7,7 @@
 (defun row->col-matrix (matrix)
   "Flips rows and columns"
   (loop :for col :from 0 :to (1- (length (car matrix)))
-     :collect (mapcar (lambda (x) (nth col x)) matrix)))
+        :collect (mapcar (lambda (x) (nth col x)) matrix)))
 
 (defun square-matrix? (matrix)
   (= (length matrix) (length (car matrix))))
@@ -24,10 +24,10 @@
 (defun gen-matrix (matrix exclude-row exclude-col)
   (loop :for row :from 0 :to (1- (row-len matrix))
         :if (/= exclude-row row)
-          :collect
-          (loop :for col :from 0 :to (1- (col-len matrix))
-                :if (/= exclude-col col)
-                  :collect (get-atom-matrix matrix row col))))
+        :collect
+        (loop :for col :from 0 :to (1- (col-len matrix))
+              :if (/= exclude-col col)
+              :collect (get-atom-matrix matrix row col))))
 
 (defun get-determinant-matrix (matrix &optional (n 0))
   (flet ((gen-atom (matrix n)
@@ -48,7 +48,7 @@
           (t  (let ((m (cons (list '- (gen-atom matrix n) (gen-atom matrix (1+ n)))
                              (get-determinant-matrix matrix (+ 2 n)))))
                 (if (zerop n) (cons '+ m) m))))))
-  
+
 
 (defun .* (vec1 vec2)
   (cons '+ (mapcar (lambda (x y) `(* ,x ,y)) vec1 vec2)))
@@ -92,7 +92,7 @@
          (prefix->infix (append (inv? exp) (neg? exp) (cdr exp)) (car exp)))
         (t (let ((next (prefix->infix (cdr exp) op)))
              (cons (prefix->infix (car exp)) (if next (cons op next)))))))
-    
+
 (defun format-math-notation (var-name maff)
   (format t "~a = ~a~%~%" var-name maff))
 
@@ -124,29 +124,29 @@
         
         (b `((,(nth 6 eq1))
              (,(nth 6 eq2)))))
-
+    
     (let ((inv-a (get-inverse-matrix a))
           (determinate (get-determinant-matrix a)))
       (progn
         (format-math-notation "Δ" (eval determinate))
         (format-math-notation "a⁻¹" (prefix->infix inv-a)))
-        ;;(format-math-notation "a⁻¹" (format-matrix (eval-matrix inv-a)))
-        ;;(format t "~a = ~a * ~a~%~%" x (format-matrix (eval-matrix inv-a)) (format-matrix b))))
+      ;;(format-math-notation "a⁻¹" (format-matrix (eval-matrix inv-a)))
+      ;;(format t "~a = ~a * ~a~%~%" x (format-matrix (eval-matrix inv-a)) (format-matrix b))))
+      
+      (let ((inv-a*b (multiply-matrix inv-a b)))
+        (progn
+          (format-math-notation "a⁻¹*b" (prefix->infix inv-a*b))
+          (format-matrix inv-a*b))))))
+          ;;(loop :for var :in x
+          ;;      :for ans :in (eval-matrix inv-a*b) :do
+          ;;    (format t "~a = ~a~%" (car var) (car ans)))))))))
 
-        (let ((inv-a*b (multiply-matrix inv-a b)))
-          (progn
-            (format-math-notation "a⁻¹*b" (prefix->infix inv-a*b))
-            (format-matrix inv-a*b)
-            ;;(loop :for var :in x
-            ;;      :for ans :in (eval-matrix inv-a*b) :do
-            ;;    (format t "~a = ~a~%" (car var) (car ans)))))))))
-            )))))
 
 
 (defun cramers-method (eq1 eq2)
   (let ((x `((,(nth 1 eq1))
              (,(nth 4 eq1))))
-
+        
         (a `((,(nth 0 eq1) ,(nth 3 eq1))
              (,(nth 0 eq2) ,(nth 3 eq2))))
         
@@ -162,18 +162,18 @@
       (progn
         (loop :for var :in x
               :for ans :in num :do
-                (format t "~a = determinate of ~a / ~a ~%= ~a / ~a~%~%"
-                        (car var)
-                        (format-matrix ans) dem
-                        (get-determinant-matrix ans) dem))
+              (format t "~a = determinate of ~a / ~a ~%= ~a / ~a~%~%"
+                      (car var)
+                      (format-matrix ans) dem
+                      (get-determinant-matrix ans) dem))
         (format t "~%")
         (loop :for var :in x
               :for ans :in num :do
-                (format t "~a = ~a~%"
-                        (car var) (/ (eval (get-determinant-matrix ans)) dem)))))))
+              (format t "~a = ~a~%"
+                      (car var) (/ (eval (get-determinant-matrix ans)) dem)))))))
 
 (defun main ()
   (if (>= (length *posix-argv*) 2)
-    (format t "~a~%" (multiply-matrix (get-inverse-matrix (read-from-string (nth 1 *posix-argv*))) (read-from-string (nth 2 *posix-argv*))))
-    nil))
+      (format t "~a~%" (multiply-matrix (get-inverse-matrix (read-from-string (nth 1 *posix-argv*))) (read-from-string (nth 2 *posix-argv*))))
+      nil))
 (main)
