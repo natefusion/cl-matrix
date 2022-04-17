@@ -45,10 +45,9 @@
            (if (oddp (row-len matrix))
                (list (gen-atom matrix (1- (row-len matrix))))
                nil))
-          (t  (let ((m (cons (list '- (gen-atom matrix n) (gen-atom matrix (1+ n)))
-                             (get-determinant-matrix matrix (+ 2 n)))))
-                (if (zerop n) (cons '+ m) m))))))
-
+          (t (append (if (zerop n) '(+))
+                     (cons (list '- (gen-atom matrix n) (gen-atom matrix (1+ n)))
+                           (get-determinant-matrix matrix (+ 2 n))))))))
 
 (defun .* (vec1 vec2)
   (cons '+ (mapcar (lambda (x y) `(* ,x ,y)) vec1 vec2)))
@@ -58,8 +57,7 @@
       (loop :for row :in matrix1
             :collect
             (loop :for col :in (row->col-matrix matrix2)
-                  :collect (.* row col)))
-      nil))
+                  :collect (.* row col)))))
 
 (defun get-inverse-matrix (matrix)
   (cond ((nxn-matrix? matrix 1) (get-atom-matrix matrix 0 0))
@@ -70,9 +68,7 @@
                      :collect
                      `(* (/ ,(get-determinant-matrix matrix))
                          ,(list (if (evenp (+ row col)) '+ '-)
-                                (get-determinant-matrix (gen-matrix matrix col row)))))))
-        (t nil)))
-
+                                (get-determinant-matrix (gen-matrix matrix col row)))))))))
 
 (defun op? (exp)
   (or (eq exp '+)
