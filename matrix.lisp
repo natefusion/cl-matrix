@@ -4,11 +4,6 @@
 (defun get-row-matrix (matrix row)
   (nth row matrix))
 
-(defun row->col-matrix (matrix)
-  "Flips rows and columns"
-  (loop :for col :from 0 :to (1- (length (car matrix)))
-        :collect (mapcar (lambda (x) (nth col x)) matrix)))
-
 (defun square-matrix? (matrix)
   (= (length matrix) (length (car matrix))))
 
@@ -21,11 +16,16 @@
 (defun col-len (matrix)
   (length (car matrix)))
 
+(defun row->col-matrix (matrix)
+  "Flips rows and columns"
+  (loop :for col :below (col-len matrix)
+        :collect (mapcar (lambda (x) (nth col x)) matrix)))
+
 (defun gen-matrix (matrix exclude-row exclude-col)
-  (loop :for row :from 0 :to (1- (row-len matrix))
+  (loop :for row :below (row-len matrix)
         :if (/= exclude-row row)
         :collect
-        (loop :for col :from 0 :to (1- (col-len matrix))
+        (loop :for col :below (col-len matrix)
               :if (/= exclude-col col)
               :collect (get-atom-matrix matrix row col))))
 
@@ -64,9 +64,9 @@
 (defun get-inverse-matrix (matrix)
   (cond ((nxn-matrix? matrix 1) (get-atom-matrix matrix 0 0))
         ((square-matrix? matrix)
-         (loop :for row :from 0 :to (1- (row-len matrix))
+         (loop :for row :below (row-len matrix)
                :collect
-               (loop :for col :from 0 :to (1- (col-len matrix))
+               (loop :for col :below (col-len matrix)
                      :collect
                      `(* (/ ,(get-determinant-matrix matrix))
                          ,(list (if (evenp (+ row col)) '+ '-)
