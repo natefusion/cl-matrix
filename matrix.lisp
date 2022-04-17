@@ -100,14 +100,14 @@
   (let ((rlen (row-len matrix))
         (clen (col-len matrix)))
     (dotimes (row rlen)
-      (progn (format t (cond ((zerop row) "┏ ")
-                             ((eql row (1- rlen)) "┗ ")
-                             (t "┃ ")))
-             (dotimes (col clen)
-               (format t "~a " (eval (get-atom-matrix matrix row col))))
-             (format t (cond ((zerop row) "┓~%")
-                             ((eql row (1- rlen)) "┛~%")
-                             (t "┃~%")))))))
+      (format t (cond ((zerop row) "┏ ")
+                      ((eql row (1- rlen)) "┗ ")
+                      (t "┃ ")))
+      (dotimes (col clen)
+        (format t "~a " (get-atom-matrix matrix row col)))
+      (format t (cond ((zerop row) "┓~%")
+                      ((eql row (1- rlen)) "┛~%")
+                      (t "┃~%"))))))
 
 (defun prefix->infix-matrix (m)
   (mapcar (lambda (x) (mapcar (lambda (y) (prefix->infix y)) x)) m))
@@ -116,61 +116,56 @@
   (mapcar (lambda (x) (mapcar (lambda (y) (eval y)) x)) m))
 
 (defun matrix-algebra-method (eq1 eq2)
-  (let ((x `((,(nth 1 eq1))
-             (,(nth 4 eq1))))
-        
-        (a `((,(nth 0 eq1) ,(nth 3 eq1))
-             (,(nth 0 eq2) ,(nth 3 eq2))))
-        
-        (b `((,(nth 6 eq1))
-             (,(nth 6 eq2)))))
-    
-    (let ((inv-a (get-inverse-matrix a))
-          (determinate (get-determinant-matrix a)))
-      (progn
-        (format-math-notation "Δ" (eval determinate))
-        (format-math-notation "a⁻¹" (prefix->infix inv-a)))
-      ;;(format-math-notation "a⁻¹" (format-matrix (eval-matrix inv-a)))
-      ;;(format t "~a = ~a * ~a~%~%" x (format-matrix (eval-matrix inv-a)) (format-matrix b))))
-      
-      (let ((inv-a*b (multiply-matrix inv-a b)))
-        (progn
-          (format-math-notation "a⁻¹*b" (prefix->infix inv-a*b))
-          (format-matrix inv-a*b))))))
-          ;;(loop :for var :in x
-          ;;      :for ans :in (eval-matrix inv-a*b) :do
-          ;;    (format t "~a = ~a~%" (car var) (car ans)))))))))
+  (let* ((x `((,(nth 1 eq1))
+              (,(nth 4 eq1))))
+         
+         (a `((,(nth 0 eq1) ,(nth 3 eq1))
+              (,(nth 0 eq2) ,(nth 3 eq2))))
+         
+         (b `((,(nth 6 eq1))
+              (,(nth 6 eq2))))
+         
+         (inv-a (get-inverse-matrix a))
+         (determinate (get-determinant-matrix a))
+         (inv-a*b (multiply-matrix inv-a b)))
+
+    (format t "~a * ~a = ~a~%" a x b)
+    (format-math-notation "Δ" (eval determinate))
+    (format-math-notation "a⁻¹" (prefix->infix-matrix inv-a))
+    (format-math-notation "a⁻¹*b" (prefix->infix-matrix inv-a*b))
+    (format-matrix (eval-matrix inv-a*b))))
 
 
 
 (defun cramers-method (eq1 eq2)
-  (let ((x `((,(nth 1 eq1))
-             (,(nth 4 eq1))))
-        
-        (a `((,(nth 0 eq1) ,(nth 3 eq1))
-             (,(nth 0 eq2) ,(nth 3 eq2))))
-        
-        (b `((,(nth 6 eq1))
-             (,(nth 6 eq2)))))
+  (let* ((x `((,(nth 1 eq1))
+              (,(nth 4 eq1))))
+         
+         (a `((,(nth 0 eq1) ,(nth 3 eq1))
+              (,(nth 0 eq2) ,(nth 3 eq2))))
+         
+         (b `((,(nth 6 eq1))
+              (,(nth 6 eq2))))
     
-    (let ((num `(((,(get-atom-matrix b 0 0) ,(get-atom-matrix a 0 1))
-                  (,(get-atom-matrix b 1 0) ,(get-atom-matrix a 1 1)))
-                 
-                 ((,(get-atom-matrix a 0 0) ,(get-atom-matrix b 0 0))
-                  (,(get-atom-matrix a 1 0) ,(get-atom-matrix b 1 0)))))
-          (dem (eval (get-determinant-matrix a))))
-      (progn
-        (loop :for var :in x
-              :for ans :in num :do
-              (format t "~a = determinate of ~a / ~a ~%= ~a / ~a~%~%"
-                      (car var)
-                      (format-matrix ans) dem
-                      (get-determinant-matrix ans) dem))
-        (format t "~%")
-        (loop :for var :in x
-              :for ans :in num :do
-              (format t "~a = ~a~%"
-                      (car var) (/ (eval (get-determinant-matrix ans)) dem)))))))
+         (num `(((,(get-atom-matrix b 0 0) ,(get-atom-matrix a 0 1))
+                 (,(get-atom-matrix b 1 0) ,(get-atom-matrix a 1 1)))
+                
+                ((,(get-atom-matrix a 0 0) ,(get-atom-matrix b 0 0))
+                 (,(get-atom-matrix a 1 0) ,(get-atom-matrix b 1 0)))))
+         
+         (dem (eval (get-determinant-matrix a))))
+    
+    (loop :for var :in x
+          :for ans :in num :do
+            (format t "~a = determinate of ~a / ~a ~%= ~a / ~a~%~%"
+                    (car var)
+                    (format-matrix ans) dem
+                    (get-determinant-matrix ans) dem))
+    (format t "~%")
+    (loop :for var :in x
+          :for ans :in num :do
+            (format t "~a = ~a~%"
+                    (car var) (/ (eval (get-determinant-matrix ans)) dem)))))
 
 (defun main ()
   (if (>= (length *posix-argv*) 2)
