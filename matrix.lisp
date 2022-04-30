@@ -52,7 +52,7 @@
   (cons '+ (mapcar (lambda (x y) `(* ,x ,y)) vec1 vec2)))
 
 (defun multiply-matrix (matrix1 matrix2)
-  (if (= (col-len matrix1) (row-len matrix2))
+  (when (= (col-len matrix1) (row-len matrix2))
       (loop :for row :in matrix1
             :collect
             (loop :for col :in (row->col-matrix matrix2)
@@ -76,10 +76,10 @@
       (eq exp '-)))
 
 (defun inv? (exp)
-  (if (and (eq (car exp) '/) (eql (length exp) 2)) '(1)))
+  (when (and (eq (car exp) '/) (eql (length exp) 2)) '(1)))
 
 (defun neg? (exp)
-  (if (and (eq (car exp) '-) (eql (length exp) 2)) '(0)))
+  (when (and (eq (car exp) '-) (eql (length exp) 2)) '(0)))
 
 (defun prefix->infix (exp &optional op)
   (cond ((atom exp) exp)
@@ -163,7 +163,7 @@
                     (car var) (/ (eval (get-determinant-matrix ans)) dem)))))
 
 (defun main ()
-  (if (>= (length *posix-argv*) 2)
+  (when (>= (length *posix-argv*) 2)
       (let* ((a (read-from-string (nth 1 *posix-argv*)))
              (b (read-from-string (nth 2 *posix-argv*)))
              (r (multiply-matrix a b)))
