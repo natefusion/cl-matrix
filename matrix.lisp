@@ -42,9 +42,9 @@
                  (d (get-atom-matrix matrix 1 1)))
              `(- (* ,a ,d) (* ,b ,c))))
           ((>= n (1- (row-len matrix)))
-           (if (oddp (row-len matrix))
+           (when (oddp (row-len matrix))
                (list (gen-atom matrix (1- (row-len matrix))))))
-          (t (append (if (zerop n) '(+))
+          (t (append (when (zerop n) '(+))
                      (cons (list '- (gen-atom matrix n) (gen-atom matrix (1+ n)))
                            (get-determinant-matrix matrix (+ 2 n))))))))
 
@@ -86,7 +86,7 @@
         ((op? (car exp))
          (prefix->infix (append (inv? exp) (neg? exp) (cdr exp)) (car exp)))
         (t (let ((next (prefix->infix (cdr exp) op)))
-             (cons (prefix->infix (car exp)) (if next (cons op next)))))))
+             (cons (prefix->infix (car exp)) (when next (cons op next)))))))
 
 (defun format-math-notation (var-name maff)
   (format t "~a = ~a~%~%" var-name maff))
