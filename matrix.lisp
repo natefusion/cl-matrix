@@ -88,6 +88,96 @@
         (t (let ((next (prefix->infix (cdr exp) op)))
              (cons (prefix->infix (car exp)) (when next (cons op next)))))))
 
+(defparameter *t* (get-determinant-matrix '((i j k)
+                                            (3 0 2)
+                                            (-1 4 2))))
+
+
+(defun sump (exp)
+  (and (listp exp) (eql (car exp) '+)))
+
+(defun differencep (exp)
+  (and (listp exp) (eql (car exp) '-)))
+
+(defun negationp (exp)
+  (and (listp exp) (eql (car exp) '-) (= (length exp) 2)))
+
+(defun productp (exp)
+  (and (listp exp) (eql (car exp) '*)))
+
+(defun divisionp (exp)
+  (and (listp exp) (eq (car exp) '/)))
+
+(defun make-sum (a b)
+  (cond ((and (numberp a) (numberp b)) (+ a b))
+        ((eql 0 a) b)
+        ((eql 0 b) a)
+
+        (t (list '+ a b))))
+
+(defun make-difference (a b)
+  (cond ((and (numberp a) (numberp b)) (- a b))
+        ((eql 0 a) (list '- b))
+        ((eql 0 b) (list '- a))
+
+        ((negationp b)
+         (list* '+ a (cdr b)))
+
+        (t (list '+ a (make-negation b)))))
+
+(defun make-negation (a)
+  (cond ((numberp a) (- a))
+
+        ((or (productp a) (divisionp a))
+         (let ((pa (second a))
+               (pb (third a)))
+           (cond ((numberp pa) (list (first a) (make-negation pa) pb))
+                 ((numberp pb) (list (first a) pa (make-negation pb)))
+                 (t (list '- a)))))
+
+        (t (list '- a))))
+
+(defun make-product (a b)
+  (cond ((and (numberp a) (numberp b)) (* a b))
+        ((eql 0 a) 0)
+        ((eql 0 b) 0)
+        ((eql 1 a) b)
+        ((eql 1 b) a)
+
+        ((and (symbolp a) (symbolp b))
+         (read-from-string (format nil "~a~a" a b)))
+
+        (t (list '* a b))))
+
+(defun make-division (a b)
+  (cond ((and (numberp a) (numberp b)) (/ a b))
+        ((eql 0 a) 0)
+        (t (list '/ a b))))
+
+(defun simplify (exp)
+  (cond ((sump exp)
+         (make-sum (simplify (second exp))
+                   (simplify (third exp))))
+
+        ((negationp exp)
+         (make-negation (simplify (second exp))))
+        
+        ((differencep exp)
+         (make-difference (simplify (second exp))
+                          (simplify (third exp))))
+        
+        ((productp exp)
+         (make-product (simplify (second exp))
+                       (simplify (third exp))))
+        
+        ((divisionp exp)
+         (make-division (simplify (second exp))
+                        (simplify (third exp))))
+
+        
+        (t exp)))
+
+
 (defun format-math-notation (var-name maff)
   (format t "~a = ~a~%~%" var-name maff))
 
@@ -163,7 +253,7 @@
                     (car var) (/ (eval (get-determinant-matrix ans)) dem)))))
 
 (defun main ()
-  (when (>= (length *posix-argv*) 2)
+  (if (>= (length *posix-argv*) 2)
       (let* ((a (read-from-string (nth 1 *posix-argv*)))
              (b (read-from-string (nth 2 *posix-argv*)))
              (r (multiply-matrix a b)))
@@ -176,4 +266,3 @@
         (format t "=~%")
         (format-matrix (eval-matrix r)))
         (format t "please supply at least two arguments")))
-(main)
