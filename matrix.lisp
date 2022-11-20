@@ -88,11 +88,6 @@
         (t (let ((next (prefix->infix (cdr exp) op)))
              (cons (prefix->infix (car exp)) (when next (cons op next)))))))
 
-(defparameter *t* (get-determinant-matrix '((i j k)
-                                            (3 0 2)
-                                            (-1 4 2))))
-
-
 (defun sump (exp)
   (and (listp exp) (eql (car exp) '+)))
 
@@ -158,7 +153,7 @@
   (cond ((sump exp)
          (make-sum (simplify (second exp))
                    (simplify (third exp))))
-
+        
         ((negationp exp)
          (make-negation (simplify (second exp))))
         
