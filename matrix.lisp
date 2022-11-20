@@ -111,13 +111,22 @@
 
 (defun make-negation (a)
   (cond ((numberp a) (- a))
+        ((productp a)
+         (let ((x (second a))
+               (y (third a)))
+           (cond ((symbolp x) (make-product x (make-negation y)))
+                 ((symbolp y) (make-product (make-negation x) y)))))
         (t (list '- a))))
 
 (defun make-difference (a b)
-  (cond ((eql a b) 0)
-        ((and (numberp a) (numberp b)) (- a b))
+  (cond ((null b) (make-negation a))
         ((eql 0 a) (make-negation b))
         ((eql 0 b) a)
+        ((eql a b) 0)
+        ((and (numberp a) (numberp b)) (- a b))
+        ((and (differencep a)
+              (eql (second a) b))
+         (make-negation (third a)))
         (t (list '- a b))))
 
 (defun make-product (a b)
@@ -138,8 +147,8 @@
   (cond ((sump exp)
          (make-sum (simplify (second exp))
                    (simplify (third exp))))
-        ((negationp exp)
-         (make-negation (simplify (second exp))))
+        ;; ((negationp exp)
+        ;;  (make-negation (simplify (second exp))))
         ((differencep exp)
          (make-difference (simplify (second exp))
                           (simplify (third exp))))
@@ -174,6 +183,11 @@
 (defun d/dx (exp) (diff 'x exp))
 (defun d/dy (exp) (diff 'y exp))
 (defun d/dz (exp) (diff 'z exp))
+
+(defparameter *nabla* (list #'d/dx #'d/dy #'d/dz))
+
+(defun x* (v1 v2)
+  (get-determinant-matrix `((i j k) ,v1 ,v2)))
 
 (defun format-math-notation (var-name maff)
   (format t "~a = ~a~%~%" var-name maff))
