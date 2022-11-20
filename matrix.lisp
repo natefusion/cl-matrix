@@ -104,44 +104,29 @@
   (and (listp exp) (eq (car exp) '/)))
 
 (defun make-sum (a b)
-  (cond ((and (numberp a) (numberp b)) (+ a b))
-        ((eql 0 a) b)
+  (cond ((eql 0 a) b)
         ((eql 0 b) a)
-
+        ((and (numberp a) (numberp b)) (+ a b))
         (t (list '+ a b))))
-
-(defun make-difference (a b)
-  (cond ((and (numberp a) (numberp b)) (- a b))
-        ((eql 0 a) (list '- b))
-        ((eql 0 b) (list '- a))
-
-        ((negationp b)
-         (list* '+ a (cdr b)))
-
-        (t (list '+ a (make-negation b)))))
 
 (defun make-negation (a)
   (cond ((numberp a) (- a))
-
-        ((or (productp a) (divisionp a))
-         (let ((pa (second a))
-               (pb (third a)))
-           (cond ((numberp pa) (list (first a) (make-negation pa) pb))
-                 ((numberp pb) (list (first a) pa (make-negation pb)))
-                 (t (list '- a)))))
-
         (t (list '- a))))
 
+(defun make-difference (a b)
+  (cond ((eql a b) 0)
+        ((and (numberp a) (numberp b)) (- a b))
+        ((eql 0 a) (make-negation b))
+        ((eql 0 b) a)
+        (t (list '- a b))))
+
 (defun make-product (a b)
-  (cond ((and (numberp a) (numberp b)) (* a b))
-        ((eql 0 a) 0)
-        ((eql 0 b) 0)
+  (cond ((or (eql 0 a) (eql 0 b)) 0)
         ((eql 1 a) b)
         ((eql 1 b) a)
-
-        ((and (symbolp a) (symbolp b))
-         (read-from-string (format nil "~a~a" a b)))
-
+        ((and (numberp a) (numberp b)) (* a b))
+        ((functionp a) (funcall a b))
+        ((functionp b) (funcall b a))
         (t (list '* a b))))
 
 (defun make-division (a b)
@@ -153,25 +138,42 @@
   (cond ((sump exp)
          (make-sum (simplify (second exp))
                    (simplify (third exp))))
-        
         ((negationp exp)
          (make-negation (simplify (second exp))))
-        
         ((differencep exp)
          (make-difference (simplify (second exp))
                           (simplify (third exp))))
-        
         ((productp exp)
          (make-product (simplify (second exp))
                        (simplify (third exp))))
-        
         ((divisionp exp)
          (make-division (simplify (second exp))
                         (simplify (third exp))))
-
-        
         (t exp)))
 
+(defun diff (wrt exp)
+  (cond ((numberp exp) 0)
+        ((symbolp exp) (if (eql wrt exp) 1 0))
+        ((sump exp)
+         (make-sum (diff wrt (second exp)) (diff wrt (third exp))))
+        ((differencep exp)
+         (make-difference (diff wrt (second exp)) (diff wrt (third exp))))
+        ((productp exp)
+         (let ((f (second exp))
+               (g (third exp)))
+           (make-sum (make-product (diff wrt f) g)
+                     (make-product f (diff wrt g)))))
+        ((divisionp exp)
+         (let ((f (second exp))
+               (g (third exp)))
+           (make-division (make-difference (make-product (diff wrt f) g)
+                                           (make-product f (diff wrt g)))
+                          (make-product g g))))
+        (t (error "wot"))))
+
+(defun d/dx (exp) (diff 'x exp))
+(defun d/dy (exp) (diff 'y exp))
+(defun d/dz (exp) (diff 'z exp))
 
 (defun format-math-notation (var-name maff)
   (format t "~a = ~a~%~%" var-name maff))
