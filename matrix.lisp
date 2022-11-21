@@ -149,6 +149,10 @@
 
 (defun make-negation (a)
   (cond ((numberp a) (- a))
+        ((and (productp a) (numberp (second a)))
+         (make-product (make-negation (second a)) (third a)))
+        ((and (productp a) (numberp (third a)))
+         (make-product (second a) (make-negation (third a))))
         (t (list '- a))))
 
 (defun make-difference (a b)
@@ -161,8 +165,7 @@
               (eql (second a) b))
          (make-negation (third a)))
         ((exp-equal a b) 0)
-        ((productp b)
-         (make-sum a (make-negation b)))
+        ((productp b) (make-sum a (make-negation b)))
         (t (list '- a b))))
 
 (defun make-division (a b)
