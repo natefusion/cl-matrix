@@ -128,6 +128,15 @@
          (and (exp-equal (second x) (second y))
               (exp-equal (third x) (third y))))))
 
+(defun make-product (a b)
+  (cond ((or (eql 0 a) (eql 0 b)) 0)
+        ((eql 1 a) b)
+        ((eql 1 b) a)
+        ((and (numberp a) (numberp b)) (* a b))
+        ((functionp a) (funcall a b))
+        ((functionp b) (funcall b a))
+        (t (list '* a b))))
+
 (defun make-sum (a b)
   (cond ((eql 0 a) b)
         ((eql 0 b) a)
@@ -155,15 +164,6 @@
         ((productp b)
          (make-sum a (make-negation b)))
         (t (list '- a b))))
-
-(defun make-product (a b)
-  (cond ((or (eql 0 a) (eql 0 b)) 0)
-        ((eql 1 a) b)
-        ((eql 1 b) a)
-        ((and (numberp a) (numberp b)) (* a b))
-        ((functionp a) (funcall a b))
-        ((functionp b) (funcall b a))
-        (t (list '* a b))))
 
 (defun make-division (a b)
   (cond ((and (numberp a) (numberp b)) (/ a b))
