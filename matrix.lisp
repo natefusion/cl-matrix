@@ -147,11 +147,16 @@
         ((eql a b) (make-product 2 a))
         (t (list '+ a b))))
 
+(defun negationp (a)
+  (or (and (numberp a) (< 0 a))
+      (and (differencep a) (null (third a)))))
+
 (defun make-negation (a)
   (cond ((numberp a) (- a))
-        ((and (productp a) (numberp (second a)))
+        ((and (differencep a) (null (third a))) (second a))
+        ((and (productp a) (negationp (second a)))
          (make-product (make-negation (second a)) (third a)))
-        ((and (productp a) (numberp (third a)))
+        ((and (productp a) (negationp (third a)))
          (make-product (second a) (make-negation (third a))))
         (t (list '- a))))
 
@@ -189,7 +194,8 @@
         (t exp)))
 
 (defun diff (wrt exp)
-  (cond ((numberp exp) 0)
+  (cond ((null exp) nil)
+        ((numberp exp) 0)
         ((symbolp exp) (if (eql wrt exp) 1 0))
         ((sump exp)
          (make-sum (diff wrt (second exp)) (diff wrt (third exp))))
