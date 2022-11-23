@@ -24,10 +24,10 @@
 (defun gen-matrix (matrix exclude-row exclude-col)
   (loop :for row :below (row-len matrix)
         :if (/= exclude-row row)
-        :collect
-        (loop :for col :below (col-len matrix)
-              :if (/= exclude-col col)
-              :collect (get-atom-matrix matrix row col))))
+          :collect
+          (loop :for col :below (col-len matrix)
+                :if (/= exclude-col col)
+                  :collect (get-atom-matrix matrix row col))))
 
 (defun get-determinant-matrix (matrix &optional (n 0))
   (flet ((gen-atom (matrix n)
@@ -43,7 +43,7 @@
              `(- (* ,a ,d) (* ,b ,c))))
           ((>= n (1- (row-len matrix)))
            (when (oddp (row-len matrix))
-               (list (gen-atom matrix (1- (row-len matrix))))))
+             (list (gen-atom matrix (1- (row-len matrix))))))
           (t (append (when (zerop n) '(+))
                      (cons (list '- (gen-atom matrix n) (gen-atom matrix (1+ n)))
                            (get-determinant-matrix matrix (+ 2 n))))))))
@@ -53,10 +53,10 @@
 
 (defun multiply-matrix (matrix1 matrix2)
   (when (= (col-len matrix1) (row-len matrix2))
-      (loop :for row :in matrix1
-            :collect
-            (loop :for col :in (row->col-matrix matrix2)
-                  :collect (.* row col)))))
+    (loop :for row :in matrix1
+          :collect
+          (loop :for col :in (row->col-matrix matrix2)
+                :collect (.* row col)))))
 
 (defun get-inverse-matrix (matrix)
   (cond ((nxn-matrix? matrix 1) (get-atom-matrix matrix 0 0))
@@ -266,6 +266,64 @@
 (defun x* (v1 v2)
   (get-determinant-matrix `((i j k) ,v1 ,v2)))
 
+(defparameter *binary-operators* '((+ 1) (- 1) (* 2) (/ 2) (expt 3)))
+(defparameter *unary-operators* '((+ 4) (- 4)))
+
+(defun weight (c) (second (assoc c *binary-operators*)))
+(defun binary-opcode (c) (first (assoc c *binary-operators*)))
+(defun unary-opcode (c) (first (assoc c *unary-operators*)))
+
+(defun inf-iter (exp operators operands)
+  (cond ((and (null exp) (null operators))
+         (first operands))
+
+        ;; implicit multiplication
+        ((and exp (or (listp (first exp))
+                      (null (weight (first exp)))))
+         (inf-iter (cons '* exp) operators operands))
+
+        ((and exp (or (null operators)
+                      (> (weight (first exp)) (weight (first operators)))))
+         (inf-aux (rest exp) (cons (first exp) operators) operands))
+
+        (t
+         (inf-iter exp (rest operators)
+                   (cons (list (binary-opcode (first operators))
+                               (cadr operands) (first operands))
+                         (cddr operands))))))
+
+(defun inf-aux (exp operators operands)
+  (if (and (atom (first exp)) (assoc (first exp) *unary-operators*))
+      (inf-iter (cddr exp) operators
+                (cons (list (unary-opcode (first exp))
+                            (infix->prefix (cadr exp)))
+                      operands))
+      (inf-iter (rest exp) operators (cons (infix->prefix (first exp)) operands))))
+
+(defun infix->prefix (exp)
+  (if (atom exp)
+      exp
+      (inf-aux exp nil nil)))
+
+(defun notation (exp)
+  (let (final stack variables)
+    (loop for x across exp
+          do (case x
+               ((#\+) (push '+ final))
+               ((#\*) (push '* final))
+               ((#\/) (push '/ final))
+               ((#\^) (push 'expt final))
+               ((#\() (push final stack) (setf final nil))
+               ((#\)) (push final (first stack)) (setf final (pop stack)))
+               ((#\space))
+               (t (if (alphanumericp x)
+                      (progn (push (read-from-string (string x)) final)
+                             (when (alpha-char-p x)
+                               (pushnew x variables)))
+                      (error "wot in tarnation is '~a' doing here" x))))
+             
+          finally (return (infix->prefix final)))))
+
 (defun format-math-notation (var-name maff)
   (format t "~a = ~a~%~%" var-name maff))
 
@@ -319,7 +377,7 @@
          
          (b `((,(nth 6 eq1))
               (,(nth 6 eq2))))
-    
+         
          (num `(((,(get-atom-matrix b 0 0) ,(get-atom-matrix a 0 1))
                  (,(get-atom-matrix b 1 0) ,(get-atom-matrix a 1 1)))
                 
@@ -353,4 +411,4 @@
         (format-matrix (prefix->infix-matrix r))
         (format t "=~%")
         (format-matrix (eval-matrix r)))
-        (format t "please supply at least two arguments")))
+      (format t "please supply at least two arguments")))
