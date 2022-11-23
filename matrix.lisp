@@ -178,20 +178,14 @@
                (a2 (third a))
                (b1 (second b))
                (b2 (third b)))
-           (cond ((and (numberp a1) (numberp b1))
-                  (if (exp-equal a2 b2)
-                      (make-product (+ a1 b1) a2)
-                      (list '+ a b)))
+           (cond ((and (numberp a1) (numberp b1) (exp-equal a2 b2))
+                  (make-product (+ a1 b1) a2))
                  
-                 ((numberp a1)
-                  (if (exp-equal a2 b)
-                      (make-product (1+ a1) b)
-                      (list '+ a b)))
+                 ((and (numberp a1) (exp-equal a2 b))
+                  (make-product (1+ a1) b))
 
-                 ((numberp b1)
-                  (if (exp-equal b2 a)
-                      (make-product (1+ b1) a)
-                      (list '+ a b)))
+                 ((and (numberp b1) (exp-equal b2 a))
+                  (make-product (1+ b1) a))
                  
                  (t (list '+ a b)))))
         
