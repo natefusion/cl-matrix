@@ -94,8 +94,9 @@
 (defun differencep (exp)
   (and (listp exp) (eql (car exp) '-)))
 
-(defun negationp (exp)
-  (and (listp exp) (eql (car exp) '-) (= (length exp) 2)))
+(defun negationp (a)
+  (or (and (numberp a) (< a 0))
+      (and (differencep a) (null (third a)))))
 
 (defun productp (exp)
   (and (listp exp) (eql (car exp) '*)))
@@ -191,9 +192,7 @@
         
         (t (list '+ a b))))
 
-(defun negationp (a)
-  (or (and (numberp a) (< 0 a))
-      (and (differencep a) (null (third a)))))
+
 
 (defun make-negation (a)
   (cond ((numberp a) (- a))
