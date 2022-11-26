@@ -136,13 +136,6 @@
         ((functionp a) (funcall a b))
         ((functionp b) (funcall b a))
 
-        ((and (numberp b) (productp a))
-         (let ((a1 (second a))
-               (a2 (third a)))
-           (if (numberp a1)
-               (make-product (* b a1) a2)
-               (list '* b a))))
-        
         ((and (numberp a) (productp b))
          (let ((b1 (second b))
                (b2 (third b)))
@@ -150,18 +143,24 @@
                (make-product (* a b1) b2)
                (list '* a b))))
 
+        ((and (productp a) (productp b))
+         (if (and (numberp (second a)) (numberp (second b)))
+             (make-product (* (second a) (second b))
+                           (make-product (third a) (third b)))
+             (list '* a b)))
+
         ((productp a)
          (let ((a1 (second a))
                (a2 (third a)))
            (if (numberp a1)
-               (list '* a1 (list '* b a2))
+               (list '* a1 (make-product a2 b))
                (list '* b a))))
 
         ((productp b)
          (let ((b1 (second b))
                (b2 (third b)))
            (if (numberp b1)
-               (list '* b1 (list '* a b2))
+               (list '* b1 (make-product b2 a))
                (list '* a b))))
         
         ((numberp a) (list '* a b))
@@ -189,10 +188,19 @@
                   (make-product (1+ b1) a))
                  
                  (t (list '+ a b)))))
+
+        ((productp a)
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (if (exp-equal a2 b)
+               (make-product (make-sum 1 a1) b)
+               (list '+ a b))))
+
+        ((and (divisionp a) (divisionp b)
+              (exp-equal (third a) (third b)))
+         (make-division (make-sum (second a) (second b)) (third a)))
         
         (t (list '+ a b))))
-
-
 
 (defun make-negation (a)
   (cond ((numberp a) (- a))
@@ -219,6 +227,32 @@
 (defun make-division (a b)
   (cond ((and (numberp a) (numberp b)) (/ a b))
         ((eql 0 a) 0)
+        ((exp-equal a b) 1)
+        
+        ((and (productp a) (productp b))
+         (let* ((a1 (second a))
+                (a2 (third a))
+                (b1 (second b))
+                (b2 (third b)))
+           (cond ((exp-equal a1 b1) (make-division a2 b2))
+                 ((exp-equal a1 b2) (make-division a2 b1))
+                 ((exp-equal a2 b1) (make-division a1 b2))
+                 ((exp-equal a2 b2) (make-division a1 b1))
+                 (t (list '/ a b)))))
+        
+        ((productp a)
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (cond ((exp-equal a1 b) a2)
+                 ((exp-equal a2 b) a1)
+                 (t (list '/ a b)))))
+
+        ((productp b)
+         (let ((b1 (second b))
+               (b2 (third b)))
+           (cond ((exp-equal b1 a) b2)
+                 ((exp-equal b2 a) b1)
+                 (t (list '/ a b))))) 
         (t (list '/ a b))))
 
 (defun simplify (exp)
@@ -305,11 +339,18 @@
       exp
       (inf-aux exp nil nil)))
 
+(defun recursive-reverse (l)
+  (when l (append (recursive-reverse (cdr l))
+                  (list (if (listp (car l))
+                            (recursive-reverse (car l))
+                            (car l))))))
+
 (defun notation (exp)
   (let (final stack variables)
     (loop for x across exp
           do (case x
                ((#\+) (push '+ final))
+               ((#\-) (push '- final))
                ((#\*) (push '* final))
                ((#\/) (push '/ final))
                ((#\^) (push 'expt final))
@@ -322,7 +363,13 @@
                                (pushnew x variables)))
                       (error "wot in tarnation is '~a' doing here" x))))
              
-          finally (return (infix->prefix final)))))
+          finally (return (infix->prefix (recursive-reverse final))))))
+
+(defun equation (e1 e2)
+  (let ((e1 (simplify e1))
+        (e2 (simplify e2)))
+      (cond ((exp-equal e1 e2) t)
+            (t nil))))
 
 (defun format-math-notation (var-name maff)
   (format t "~a = ~a~%~%" var-name maff))
