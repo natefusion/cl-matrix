@@ -366,7 +366,7 @@
                           ((#\^) (push 'expt final))
                           ((#\() (push final stack) (setf final nil))
                           ((#\)) (push final (first stack)) (setf final (pop stack)))
-                          ((#\space) (push-number))
+                          ((#\space))
                           (t (error "wot in tarnation is '~a' doing here" x)))))
             finally (push-number)
                     (return (infix->prefix (recursive-reverse final)))))))
