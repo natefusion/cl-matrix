@@ -346,24 +346,30 @@
                             (car l))))))
 
 (defun notation (exp)
-  (let (final stack variables)
-    (loop for x across exp
-          do (case x
-               ((#\+) (push '+ final))
-               ((#\-) (push '- final))
-               ((#\*) (push '* final))
-               ((#\/) (push '/ final))
-               ((#\^) (push 'expt final))
-               ((#\() (push final stack) (setf final nil))
-               ((#\)) (push final (first stack)) (setf final (pop stack)))
-               ((#\space))
-               (t (if (alphanumericp x)
-                      (progn (push (read-from-string (string x)) final)
-                             (when (alpha-char-p x)
-                               (pushnew x variables)))
-                      (error "wot in tarnation is '~a' doing here" x))))
-             
-          finally (return (infix->prefix (recursive-reverse final))))))
+  (let (final
+        stack
+        variables
+        (number (make-array 0 :element-type 'character :adjustable t :fill-pointer 0)))
+    (flet ((push-number ()
+             (when (> (length number) 0)
+               (push (read-from-string number) final)
+               (loop repeat (length number) do (vector-pop number)))))
+      (loop for x across exp
+            do (cond ((digit-char-p x) (vector-push-extend x number))
+                     ((alpha-char-p x) (pushnew x variables))
+                     (t (push-number)
+                        (case x
+                          ((#\+) (push '+ final))
+                          ((#\-) (push '- final))
+                          ((#\*) (push '* final))
+                          ((#\/) (push '/ final))
+                          ((#\^) (push 'expt final))
+                          ((#\() (push final stack) (setf final nil))
+                          ((#\)) (push final (first stack)) (setf final (pop stack)))
+                          ((#\space) (push-number))
+                          (t (error "wot in tarnation is '~a' doing here" x)))))
+            finally (push-number)
+                    (return (infix->prefix (recursive-reverse final)))))))
 
 (defun equation (e1 e2)
   (let ((e1 (simplify e1))
