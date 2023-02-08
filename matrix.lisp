@@ -132,6 +132,9 @@
          (and (exp-equal (second x) (second y))
               (exp-equal (third x) (third y))))))
 
+(defun functionp-not-wat (whatever-you-want)
+  (and (consp whatever-you-want) (eql (car whatever-you-want) 'function)))
+
 (defun make-product (a b)
   (cond ((or (eql 0 a) (eql 0 b)) 0)
         ((eql 1 a) b)
@@ -140,6 +143,13 @@
 
         ((functionp a) (funcall a b))
         ((functionp b) (funcall b a))
+
+        ;; I accept actual functions - <#FUNCTION NAME> - as well as '(function name)
+        ;; for some reason the latter prints as #'name
+        ;; but #'name does not print out <#FUNCTION NAME>
+        ;; weird.
+        ((functionp-not-wat a) (funcall (second a) b))
+        ((functionp-not-wat b) (funcall (second b) a))
 
         ((and (numberp a) (productp b))
          (let ((b1 (second b))
@@ -306,7 +316,7 @@
   (get-determinant-matrix `((i j k) ,v1 ,v2)))
 
 (defparameter *binary-operators* '((+ 1) (- 1) (* 2) (/ 2) (expt 3)))
-(defparameter *unary-operators* '((+ 4) (- 4)))
+(defparameter *unary-operators* '((+ 4) (- 4) (function 4)))
 
 (defun weight (c) (second (assoc c *binary-operators*)))
 (defun binary-opcode (c) (first (assoc c *binary-operators*)))
@@ -354,16 +364,25 @@
   (let (final
         stack
         variables
-        (number (make-array 0 :element-type 'character :adjustable t :fill-pointer 0)))
+        (number (make-array 0 :element-type 'character :adjustable t :fill-pointer 0))
+        (func (make-array 0 :element-type 'character :adjustable t :fill-pointer 0))
+        (special nil))
     (flet ((push-number ()
              (when (> (length number) 0)
                (push (read-from-string number) final)
                (loop repeat (length number) do (vector-pop number)))))
       (loop for x across exp
-            do (cond ((digit-char-p x) (vector-push-extend x number))
+            do (cond (special
+                      (case x
+                        ((#\`) (setf special nil)
+                         (push (read-from-string (concatenate 'string "(" func " function)")) final)
+                         (loop repeat (length func) do (vector-pop func)))
+                        (t (vector-push-extend x func))))
+                     ((digit-char-p x) (vector-push-extend x number))
                      ((alpha-char-p x) (push (read-from-string (string x)) final) (pushnew x variables))
                      (t (push-number)
                         (case x
+                          ((#\`) (setf special t))
                           ((#\+) (push '+ final))
                           ((#\-) (push '- final))
                           ((#\*) (push '* final))
