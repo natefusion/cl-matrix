@@ -1,3 +1,8 @@
+(defpackage :matrix
+  (:use :cl))
+
+(in-package :matrix)
+
 (defun get-atom-matrix (matrix row col)
   (nth col (nth row matrix)))
 
@@ -356,7 +361,7 @@
                (loop repeat (length number) do (vector-pop number)))))
       (loop for x across exp
             do (cond ((digit-char-p x) (vector-push-extend x number))
-                     ((alpha-char-p x) (pushnew x variables))
+                     ((alpha-char-p x) (push (read-from-string (string x)) final) (pushnew x variables))
                      (t (push-number)
                         (case x
                           ((#\+) (push '+ final))
@@ -452,9 +457,9 @@
                     (car var) (/ (eval (get-determinant-matrix ans)) dem)))))
 
 (defun main ()
-  (if (>= (length *posix-argv*) 2)
-      (let* ((a (read-from-string (nth 1 *posix-argv*)))
-             (b (read-from-string (nth 2 *posix-argv*)))
+  (if (>= (length sb-ext:*posix-argv*) 2)
+      (let* ((a (read-from-string (nth 1 sb-ext:*posix-argv*)))
+             (b (read-from-string (nth 2 sb-ext:*posix-argv*)))
              (r (multiply-matrix a b)))
         (format t "a = ~%")
         (format-matrix a)
