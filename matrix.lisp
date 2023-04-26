@@ -93,6 +93,32 @@
         (t (let ((next (prefix->infix (cdr exp) op)))
              (cons (prefix->infix (car exp)) (when next (cons op next)))))))
 
+;; (defun pretty-print (exp)
+;;   (loop with op = (first exp)
+;;         with len = (length exp)
+        
+;;         for subexp in (rest exp)
+;;         for index from 0
+;;         with result = (make-array 0 :element-type 'character :adjustable t :fill-pointer 0)
+        
+;;         do (case op
+;;              ((exp) (vector-push-extend #\e result) (vector-push-extend #\^ result))
+;;              (t (error "pretty-print: case op")))
+;;            (typecase subexp
+;;              (number (vector-push-extend (digit-char subexp) result))
+;;              (symbol (vector-push-extend (char-downcase (char (string subexp) 0)) result))
+;;              (list (loop initially (vector-push-extend #\( result)
+;;                          for x across (pretty-print subexp)
+;;                          do (vector-push-extend x result)
+;;                          finally (vector-push-extend #\) result))))
+;;            (when (or (<= len 2) (< index (- len 2)))
+;;              (case op
+;;                ((*))
+;;                ((expt) (vector-push-extend #\^ result))
+;;                (t (vector-push-extend (char-downcase (char (string op) 0)) result)) ))
+                         
+;;         finally (return result)))
+
 (defun sump (exp)
   (and (listp exp) (eql (car exp) '+)))
 
@@ -108,6 +134,44 @@
 
 (defun divisionp (exp)
   (and (listp exp) (eq (car exp) '/)))
+
+(defun funp (exp)
+  (and (listp exp) (eq (car exp) 'funcall)))
+
+(defun powp (exp)
+  (and (listp exp) (eq (car exp) 'expt)))
+
+(defun expp (exp)
+  (and (listp exp) (eq (car exp) 'exp)))
+
+(defun lnp (exp)
+  (and (listp exp) (eq (car exp) 'ln)))
+
+(defun sinp (exp)
+  (and (listp exp) (eq (car exp) 'sin)))
+
+(defun cosp (exp)
+  (and (listp exp) (eq (car exp) 'cos)))
+
+(defun tanp (exp)
+  (and (listp exp) (eq (car exp) 'tan)))
+
+(defun asinp (exp)
+  (and (listp exp) (eq (car exp) 'asin)))
+
+(defun acosp (exp)
+  (and (listp exp) (eq (car exp) 'acos)))
+
+(defun atanp (exp)
+  (and (listp exp) (eq (car exp) 'atan)))
+
+(defun atrigp (exp)
+  (or (asinp exp) (acosp exp) (atanp exp)))
+
+(defun ln (number)
+  (typecase number
+    (number (log number (exp 1)))
+    (t `(function ln ,number))))
 
 (defun flatten (lst rule)
   (labels ((rflatten (lst1 acc)
@@ -132,24 +196,11 @@
          (and (exp-equal (second x) (second y))
               (exp-equal (third x) (third y))))))
 
-(defun functionp-not-wat (whatever-you-want)
-  (and (consp whatever-you-want) (eql (car whatever-you-want) 'function)))
-
 (defun make-product (a b)
   (cond ((or (eql 0 a) (eql 0 b)) 0)
         ((eql 1 a) b)
         ((eql 1 b) a)
         ((and (numberp a) (numberp b)) (* a b))
-
-        ((functionp a) (funcall a b))
-        ((functionp b) (funcall b a))
-
-        ;; I accept actual functions - <#FUNCTION NAME> - as well as '(function name)
-        ;; for some reason the latter prints as #'name
-        ;; but #'name does not print out <#FUNCTION NAME>
-        ;; weird.
-        ((functionp-not-wat a) (funcall (second a) b))
-        ((functionp-not-wat b) (funcall (second b) a))
 
         ((and (numberp a) (productp b))
          (let ((b1 (second b))
@@ -157,6 +208,17 @@
            (if (numberp b1)
                (make-product (* a b1) b2)
                (list '* a b))))
+
+        ((and (eql a b) (symbolp a))
+         (list 'expt a 2))
+
+        ((and (powp a) (powp b))
+         (if (eql (second a) (second b))
+             (list 'expt (second a) (+ (third a) (third b)))
+             (list '* a b)))
+
+        ((and (powp a) (eql (second a) b))
+         (list 'expt b (1+ (third a))))
 
         ((and (productp a) (productp b))
          (if (and (numberp (second a)) (numberp (second b)))
@@ -177,6 +239,16 @@
            (if (numberp b1)
                (list '* b1 (make-product b2 a))
                (list '* a b))))
+
+        ((divisionp a)
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (make-division (make-product b a1) a2)))
+
+        ((divisionp b)
+         (let ((b1 (second b))
+               (b2 (third b)))
+           (make-division (make-product a b1) b2)))
         
         ((numberp a) (list '* a b))
         (t (list '* b a))))
@@ -242,6 +314,8 @@
 (defun make-division (a b)
   (cond ((and (numberp a) (numberp b)) (/ a b))
         ((eql 0 a) 0)
+        ((eql 1 b) a)
+        ((eql -1 b) (make-negation a))
         ((exp-equal a b) 1)
         
         ((and (productp a) (productp b))
@@ -265,8 +339,8 @@
         ((productp b)
          (let ((b1 (second b))
                (b2 (third b)))
-           (cond ((exp-equal b1 a) b2)
-                 ((exp-equal b2 a) b1)
+           (cond ((exp-equal b1 a) (make-division 1 b2))
+                 ((exp-equal b2 a) (make-division 1 b1))
                  (t (list '/ a b))))) 
         (t (list '/ a b))))
 
@@ -277,12 +351,23 @@
         ((differencep exp)
          (make-difference (simplify (second exp))
                           (simplify (third exp))))
+        
         ((productp exp)
          (make-product (simplify (second exp))
                        (simplify (third exp))))
         ((divisionp exp)
          (make-division (simplify (second exp))
                         (simplify (third exp))))
+
+        ((lnp exp) (if (expp (second exp))
+                       (second (second exp))
+                       exp))
+
+        ((powp exp) (if (expp (second exp))
+                        `(exp ,(third exp))
+                        exp))
+        ((funp exp)
+         (list (first exp) (second exp) (simplify (third exp))))
         (t exp)))
 
 (defun diff (wrt exp)
@@ -293,6 +378,16 @@
          (make-sum (diff wrt (second exp)) (diff wrt (third exp))))
         ((differencep exp)
          (make-difference (diff wrt (second exp)) (diff wrt (third exp))))
+        ((powp exp)
+         (if (eql (second exp) 'e)
+             (make-product (diff wrt (third exp)) exp)
+             (error "did not implement x^n other than e^n")))
+        ((funp exp)
+         (case (second (second exp))
+           ((ln) (make-product (diff wrt (third exp)) (make-division 1 (third exp))))
+           ((sin) `(funcall 'cos ,(third exp)))
+           ((cos) `(- (funcall 'sin ,(third exp))))
+           (t (error "Tried to differentiate unknown function: ~a" (second exp)))))
         ((productp exp)
          (let ((f (second exp))
                (g (third exp)))
@@ -304,7 +399,52 @@
            (make-division (make-difference (make-product (diff wrt f) g)
                                            (make-product f (diff wrt g)))
                           (make-product g g))))
+
+
         (t (error "wot: ~a" exp))))
+
+(defun indefinite-integral (wrt exp)
+  (let ((exp (simplify exp)))
+    (cond ((null exp) nil)
+          ((numberp exp) (make-product exp wrt))
+          ((symbolp exp) (if (eql wrt exp)
+                             (make-division (make-product exp exp) 2)
+                             (make-product exp wrt)))
+          ((sump exp) (make-sum (indefinite-integral wrt (second exp)) (indefinite-integral wrt (third exp))))
+          ((differencep exp) (make-difference (indefinite-integral wrt (second exp)) (indefinite-integral wrt (third exp))))
+          ((expp exp)
+           (simplify `(/ ,exp ,(diff wrt (second exp)))))
+          ((powp exp)
+           (let ((base (second exp))
+                 (power (third exp)))
+             (if (eql base wrt)
+                 (simplify `(/ (expt ,base (+ ,power 1)) (+ ,power 1)))
+                 (simplify `(/ ,exp (* ,(diff wrt power) (ln ,base)))))))
+          ((productp exp)
+           (let (u du/dx vdx)
+             (flet ((function-order (func)
+                      (typecase func
+                        (list (cond
+                                ;; arcsin, arccos, arctan
+                                ((atrigp func) 0)
+                                ;; ln, log
+                                ((or (eql (first func) 'ln) (eql (first func) 'log)) 1)
+                                ;; x^1, x^2, ...
+                                ((and (powp func) (eql (third func) wrt)) 2)
+                                ;; sin, cos, tan
+                                ((trigp func) 3)
+                                ;; e^x, 3^x, ...
+                                ((powp func) 4)))
+                        ;; x
+                        (t 2))))
+               (if (< (function-order (second exp)) (function-order (third exp)))
+                   (setf u (second exp)
+                         du/dx (diff wrt (second exp))
+                         vdx (indefinite-integral wrt (third exp)))
+                   (setf u (third exp)
+                         du/dx (diff wrt (third exp))
+                         vdx (indefinite-integral wrt (second exp))))
+               (make-difference (make-product u vdx) (indefinite-integral wrt (make-product du/dx vdx)))))))))
 
 (defun d/dx (exp) (diff 'x exp))
 (defun d/dy (exp) (diff 'y exp))
@@ -315,8 +455,8 @@
 (defun x* (v1 v2)
   (get-determinant-matrix `((i j k) ,v1 ,v2)))
 
-(defparameter *binary-operators* '((+ 1) (- 1) (* 2) (/ 2) (expt 3)))
-(defparameter *unary-operators* '((+ 4) (- 4) (function 4)))
+(defparameter *binary-operators* '((+ 1) (- 1) (* 2) (/ 2) (funcall 3) (expt 3)))
+(defparameter *unary-operators* '((+ 4) (- 4) (quote 4) (exp 4)))
 
 (defun weight (c) (second (assoc c *binary-operators*)))
 (defun binary-opcode (c) (first (assoc c *binary-operators*)))
@@ -360,46 +500,70 @@
                             (recursive-reverse (car l))
                             (car l))))))
 
+;; (defun notation (exp)
+;;   (let (final
+;;         stack
+;;         variables
+;;         (number (make-array 0 :element-type 'character :adjustable t :fill-pointer 0))
+;;         (func (make-array 0 :element-type 'character :adjustable t :fill-pointer 0))
+;;         (special nil))
+;;     (flet ((push-number ()
+;;              (when (> (length number) 0)
+;;                (push (read-from-string number) final)
+;;                (loop repeat (length number) do (vector-pop number)))))
+;;       (loop for x across exp
+;;             do (cond ;; (special
+;;                      ;;  (case x
+;;                      ;;    ((#\`)
+;;                      ;;     (setf special nil)
+;;                      ;;     (push 'quote final)
+;;                      ;;     (push (read-from-string func) final)
+;;                      ;;     (push 'funcall final)
+;;                      ;;     (loop repeat (length func) do (vector-pop func)))
+;;                      ;;    (t (vector-push-extend x func))))
+;;                      ((digit-char-p x) (vector-push-extend x number))
+;;                      ((alpha-char-p x) (push (read-from-string (string x)) final) (pushnew x variables))
+;;                      (t (push-number)
+;;                         (case x
+;;                           ;; ((#\`) (setf special t))
+;;                           ((#\+) (push '+ final))
+;;                           ((#\-) (push '- final))
+;;                           ((#\*) (push '* final))
+;;                           ((#\/) (push '/ final))
+;;                           ((#\^) (push 'expt final))
+;;                           ((#\() (push final stack) (setf final nil))
+;;                           ((#\)) (push final (first stack)) (setf final (pop stack)))
+;;                           ((#\space))
+;;                           (t (error "wot in tarnation is '~a' doing here" x)))))
+;;             finally (push-number)
+;;                     (return (infix->prefix (recursive-reverse final)))))))
+
 (defun notation (exp)
-  (let (final
-        stack
-        variables
-        (number (make-array 0 :element-type 'character :adjustable t :fill-pointer 0))
-        (func (make-array 0 :element-type 'character :adjustable t :fill-pointer 0))
-        (special nil))
-    (flet ((push-number ()
-             (when (> (length number) 0)
-               (push (read-from-string number) final)
-               (loop repeat (length number) do (vector-pop number)))))
-      (loop for x across exp
-            do (cond (special
-                      (case x
-                        ((#\`) (setf special nil)
-                         (push (read-from-string (concatenate 'string "(" func " function)")) final)
-                         (loop repeat (length func) do (vector-pop func)))
-                        (t (vector-push-extend x func))))
-                     ((digit-char-p x) (vector-push-extend x number))
-                     ((alpha-char-p x) (push (read-from-string (string x)) final) (pushnew x variables))
-                     (t (push-number)
-                        (case x
-                          ((#\`) (setf special t))
-                          ((#\+) (push '+ final))
-                          ((#\-) (push '- final))
-                          ((#\*) (push '* final))
-                          ((#\/) (push '/ final))
-                          ((#\^) (push 'expt final))
-                          ((#\() (push final stack) (setf final nil))
-                          ((#\)) (push final (first stack)) (setf final (pop stack)))
-                          ((#\space))
-                          (t (error "wot in tarnation is '~a' doing here" x)))))
-            finally (push-number)
-                    (return (infix->prefix (recursive-reverse final)))))))
+  (let (final stack variables)
+    (loop for x across exp
+          do (cond ((char= x #\e) (push 'exp final) (push 1 final))
+                   ((digit-char-p x) (push (read-from-string (string x)) final))
+                   ((alpha-char-p x) (push (read-from-string (string x)) final) (pushnew x variables))
+                   (t (case x
+                        ((#\+) (push '+ final))
+                        ((#\-) (push '- final))
+                        ((#\*) (push '* final))
+                        ((#\/) (push '/ final))
+                        ((#\^) (push 'expt final))
+                        ((#\() (push final stack) (setf final nil))
+                        ((#\)) (push final (first stack)) (setf final (pop stack)))
+                        ((#\space))
+                        (t (error "wot in tarnation is '~a' doing here" x)))))
+          finally (return (infix->prefix (recursive-reverse final))))))
 
 (defun equation (e1 e2)
   (let ((e1 (simplify e1))
         (e2 (simplify e2)))
-      (cond ((exp-equal e1 e2) t)
-            (t nil))))
+    (cond ((exp-equal e1 e2) t)
+          (t nil))))
+
+;; (defun laplace (f)
+;;   (integral 't (simplify (* (exp (* -1 s t)) f)) 0 ∞))
 
 (defun format-math-notation (var-name maff)
   (format t "~a = ~a~%~%" var-name maff))
