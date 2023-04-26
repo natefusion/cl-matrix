@@ -165,6 +165,9 @@
 (defun atanp (exp)
   (and (listp exp) (eq (car exp) 'atan)))
 
+(defun trigp (exp)
+  (or (sinp exp) (cosp exp) (tanp exp)))
+
 (defun atrigp (exp)
   (or (asinp exp) (acosp exp) (atanp exp)))
 
@@ -182,6 +185,8 @@
              acc))
     (reverse (rflatten (cdr lst) nil))))
 
+;; wow this doesn't work
+;; FIXME
 (defun exp-equal (x y)
   (cond ((and (atom x) (atom y)) (eql x y))
         ((and (productp x) (productp y))
