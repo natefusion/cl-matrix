@@ -464,7 +464,7 @@
   (labels ((prefix-binding-power (op)
              (case op
                ((+ -) 5)
-               (t (error "wat is this (prefix-bindig-power): ~a" op))))
+               (t (error "wat is this (prefix-binding-power): ~a" op))))
            (infix-binding-power (op)
              (case op
                ((+ -) (values 1 2))
@@ -478,7 +478,7 @@
                                   (|(| (prog1 (infix->prefix_helper 0)
                                          (unless (eq (pop exp) '|)|)
                                            (error "No closing parenthesis somewhere lol"))))
-                                  ((+ - * /) (list lhs (infix->prefix_helper (prefix-binding-power lhs))))
+                                  ((+ - * / expt) (list lhs (infix->prefix_helper (prefix-binding-power lhs))))
                                   (t lhs)))
                    for op = (car exp)
                    do (unless op (loop-finish))
