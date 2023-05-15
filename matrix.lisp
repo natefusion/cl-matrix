@@ -469,7 +469,7 @@
              (case op
                ((+ -) (values 1 2))
                ((* /) (values 3 4))
-               ((expt) (values 4 5))
+               ((expt) (values 5 6))
                (|)| (values nil nil '|)|))
                (t (values 3 4 'implicit-*))))
            (infix->prefix_helper (min-bp)
