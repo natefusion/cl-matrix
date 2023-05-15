@@ -460,7 +460,7 @@
 (defun x* (v1 v2)
   (get-determinant-matrix `((i j k) ,v1 ,v2)))
 
-(defun infix->prefix (exp)
+(defun notation (exp)
   (labels ((prefix-binding-power (op)
              (case op
                ((+ -) 5)
@@ -472,13 +472,13 @@
                ((expt) (values 5 6))
                (|)| (values nil nil '|)|))
                (t (values 3 4 'implicit-*))))
-           (infix->prefix_helper (min-bp)
+           (infix->prefix (min-bp)
              (loop with lhs = (let ((lhs (pop exp)))
                                 (case lhs
-                                  (|(| (prog1 (infix->prefix_helper 0)
+                                  (|(| (prog1 (infix->prefix 0)
                                          (unless (eq (pop exp) '|)|)
                                            (error "No closing parenthesis somewhere lol"))))
-                                  ((+ - * / expt) (list lhs (infix->prefix_helper (prefix-binding-power lhs))))
+                                  ((+ - * / expt) (list lhs (infix->prefix (prefix-binding-power lhs))))
                                   (t lhs)))
                    for op = (car exp)
                    do (unless op (loop-finish))
@@ -489,32 +489,24 @@
                                (setf op '*))
                               (t
                                (pop exp)))
-                        (setf lhs (list op lhs (infix->prefix_helper rhs-bp))))
-                   finally (return lhs))))
-    (infix->prefix_helper 0)))
-
-(defun recursive-reverse (l)
-  (when l (append (recursive-reverse (cdr l))
-                  (list (if (listp (car l))
-                            (recursive-reverse (car l))
-                            (car l))))))
-
-(defun notation (exp)
-  (loop with final = nil
-        for x across exp
-        do (cond ((digit-char-p x) (push (read-from-string (string x)) final))
-                 ((alpha-char-p x) (push (read-from-string (string x)) final))
-                 (t (case x
-                      ((#\+) (push '+ final))
-                      ((#\-) (push '- final))
-                      ((#\*) (push '* final))
-                      ((#\/) (push '/ final))
-                      ((#\^) (push 'expt final))
-                      ((#\() (push '|(| final))
-                      ((#\)) (push '|)| final))
-                      ((#\space))
-                      (t (error "wot in tarnation is '~a' doing here" x)))))
-        finally (return (infix->prefix (recursive-reverse final)))))
+                        (setf lhs (list op lhs (infix->prefix rhs-bp))))
+                   finally (return lhs)))
+           (lex (exp)
+             (loop for x across exp
+                   append (if (alphanumericp x)
+                              (list (read-from-string (string x)))
+                              (case x
+                                (#\+ '(+))
+                                (#\- '(-))
+                                (#\* '(*))
+                                (#\/ '(/))
+                                (#\^ '(expt))
+                                (#\( '(|(|))
+                                (#\) '(|)|))
+                                ((#\space))
+                                (t (error "wot in tarnation is '~a' doing here" x)))))))
+    (setf exp (lex exp))
+    (infix->prefix 0)))
 
 (defun equation (e1 e2)
   (let ((e1 (simplify e1))
