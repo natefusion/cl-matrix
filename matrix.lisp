@@ -476,7 +476,8 @@
              (loop with lhs = (let ((lhs (pop exp)))
                                 (case lhs
                                   (|(| (prog1 (infix->prefix_helper 0)
-                                         (pop exp)))
+                                         (unless (eq (pop exp) '|)|)
+                                           (error "No closing parenthesis somewhere lol"))))
                                   ((+ - * /) (list lhs (infix->prefix_helper (prefix-binding-power lhs))))
                                   (t lhs)))
                    for op = (car exp)
