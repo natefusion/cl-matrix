@@ -473,6 +473,16 @@
                          vdx (indefinite-integral wrt (second exp))))
                (make-difference (make-product u vdx) (indefinite-integral wrt (make-product du/dx vdx)))))))))
 
+
+(defun %diff-partial (vars exp)
+  (loop for var in vars
+        with result = exp
+        do (setf result (diff var result))
+        finally (return result)))
+
+(defmacro diff-partial ((&rest vars) exp)
+  `(%diff-partial ',vars ,exp))
+
 (defun d/dx (exp) (diff 'x exp))
 (defun d/dy (exp) (diff 'y exp))
 (defun d/dz (exp) (diff 'z exp))
