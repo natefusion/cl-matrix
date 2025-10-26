@@ -489,56 +489,70 @@
 
 (defparameter *nabla* (list #'d/dx #'d/dy #'d/dz))
 
+(defun hessian-matrix (exp vars)
+  (loop with len = (length vars)
+        for row below len
+        collect (loop for col below len
+                      collect (%diff-partial (list (nth row vars) (nth col vars)) exp))))
+
 (defun x* (v1 v2)
   (get-determinant-matrix `((i j k) ,v1 ,v2)))
 
 (defun notation (exp)
-  (labels ((prefix-binding-power (op)
-             (case op
-               ((+ -) 5)
-               (t (error "wat is this (prefix-binding-power): ~a" op))))
-           (infix-binding-power (op)
-             (case op
-               ((+ -) (values 1 2))
-               ((* /) (values 3 4))
-               ((expt) (values 5 6))
-               (|)| (values nil nil '|)|))
-               (t (values 3 4 'implicit-*))))
-           (infix->prefix (min-bp)
-             (loop with lhs = (let ((lhs (pop exp)))
-                                (case lhs
-                                  (|(| (prog1 (infix->prefix 0)
-                                         (unless (eq (pop exp) '|)|)
-                                           (error "No closing parenthesis somewhere lol"))))
-                                  ((+ - * / expt) (list lhs (infix->prefix (prefix-binding-power lhs))))
-                                  (t lhs)))
-                   for op = (car exp)
-                   do (unless op (loop-finish))
-                      (multiple-value-bind (lhs-bp rhs-bp special) (infix-binding-power op)
-                        (cond ((or (eq special '|)|) (< lhs-bp min-bp))
-                               (loop-finish))
-                              ((eq special 'implicit-*)
-                               (setf op '*))
-                              (t
-                               (pop exp)))
-                        (setf lhs (list op lhs (infix->prefix rhs-bp))))
-                   finally (return lhs)))
-           (lex (exp)
-             (loop for x across exp
-                   append (if (alphanumericp x)
-                              (list (read-from-string (string x)))
-                              (case x
-                                (#\+ '(+))
-                                (#\- '(-))
-                                (#\* '(*))
-                                (#\/ '(/))
-                                (#\^ '(expt))
-                                (#\( '(|(|))
-                                (#\) '(|)|))
-                                ((#\space))
-                                (t (error "wot in tarnation is '~a' doing here" x)))))))
-    (setf exp (lex exp))
-    (infix->prefix 0)))
+  (let (variables)
+    (labels ((prefix-binding-power (op)
+               (case op
+                 ((+ -) 5)
+                 (t (error "wat is this (prefix-binding-power): ~a" op))))
+             (infix-binding-power (op)
+               (case op
+                 ((+ -) (values 1 2))
+                 ((* /) (values 3 4))
+                 ((expt) (values 5 6))
+                 (|)| (values nil nil '|)|))
+                 (t (values 3 4 'implicit-*))))
+             (infix->prefix (min-bp)
+               (loop with lhs = (let ((lhs (pop exp)))
+                                  (case lhs
+                                    (|(| (prog1 (infix->prefix 0)
+                                           (unless (eq (pop exp) '|)|)
+                                             (error "No closing parenthesis somewhere lol"))))
+                                    ((+ - * / expt) (list lhs (infix->prefix (prefix-binding-power lhs))))
+                                    (t lhs)))
+                     for op = (car exp)
+                     do (unless op (loop-finish))
+                        (multiple-value-bind (lhs-bp rhs-bp special) (infix-binding-power op)
+                          (cond ((or (eq special '|)|) (< lhs-bp min-bp))
+                                 (loop-finish))
+                                ((eq special 'implicit-*)
+                                 (setf op '*))
+                                (t
+                                 (pop exp)))
+                          (setf lhs (list op lhs (infix->prefix rhs-bp))))
+                     finally (return lhs)))
+             (lex (exp)
+               (loop for x across exp
+                     append (cond ((alpha-char-p x)
+                                   (let ((var (read-from-string (string x))))
+                                     (pushnew var variables)
+                                     (list var)))
+                                  ((digit-char-p x)
+                                   (list (read-from-string (string x))))
+                                  (t
+                                   (case x
+                                     (#\+ '(+))
+                                     (#\- '(-))
+                                     (#\* '(*))
+                                     (#\/ '(/))
+                                     (#\^ '(expt))
+                                     (#\( '(| (|))
+                                     (#\) '(|) |))
+                                     ((#\space))
+                                     (t (error "wot in tarnation is '~a' doing here" x))))))))
+      (setf exp (lex exp))
+      (values (infix->prefix 0) variables))))
+
+
 
 (defun equation (e1 e2)
   (let ((e1 (simplify e1))
