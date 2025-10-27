@@ -148,8 +148,8 @@
 (defun expp (exp)
   (and (listp exp) (eq (car exp) 'exp)))
 
-(defun lnp (exp)
-  (and (listp exp) (eq (car exp) 'ln)))
+(defun logp (exp)
+  (and (listp exp) (eq (car exp) 'log)))
 
 (defun sinp (exp)
   (and (listp exp) (eq (car exp) 'sin)))
@@ -177,11 +177,6 @@
 
 (defun funp (exp)
   (and (listp exp) (eq (car exp) 'funcall)))
-
-(defun ln (number)
-  (typecase number
-    (number (log number (exp 1)))
-    (t `(function ln ,number))))
 
 (defun flatten (lst rule)
   (labels ((rflatten (lst1 acc)
@@ -391,11 +386,21 @@
                  (t (list '/ a b))))) 
         (t (list '/ a b))))
 
+(defun make-exp (a)
+  (cond ((productp a)
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (cond ((logp a2)
+                  (make-expt (second a2) a1))
+                 (t (list 'exp a)))))
+        (t (list 'exp a))))
+
 (defun make-expt (a b)
   (cond ((eql 0 a) 0)
         ((eql 0 b) 0)
         ((eql 1 b) a)
         ((eql 1 a) 1)
+        ((eql (exp 1) a) (make-exp b))
         ((powp a)
          (let ((a1 (second a))
                (a2 (third a)))
@@ -424,7 +429,7 @@
          (make-division (simplify (second exp))
                         (simplify (third exp))))
 
-        ((lnp exp) (if (expp (second exp))
+        ((logp exp) (if (expp (second exp))
                        (second (second exp))
                        exp))
 
@@ -444,11 +449,10 @@
         ((differencep exp)
          (make-difference (diff wrt (second exp)) (diff wrt (third exp))))
         ((powp exp)
-         (cond ((eql (second exp) wrt)
-                (make-product (third exp) (make-expt (second exp) (make-difference (third exp) 1))))
-               ((or (symbolp (second exp)) (numberp (second exp)))
+         (cond ((numberp (second exp))
                 (make-product (diff wrt (third exp)) (make-product (make-log (second exp)) exp)))
-               (t (error "erm, wut. is this is missed case?:  ~a" exp))))
+               ;; don't simplify this expression before derivating
+               (t (diff wrt `(exp ,(make-product (make-log (second exp)) (third exp)))))))
         ((productp exp)
          (let ((f (second exp))
                (g (third exp)))
@@ -463,7 +467,8 @@
 
 
         (t (make-product (diff wrt (second exp))
-                         (cond ((lnp exp) (make-division 1 (second exp)))
+                         (cond ((expp exp) (make-exp (second exp)))
+                               ((logp exp) (make-division 1 (second exp)))
                                ((sinp exp) `(cos ,(second exp)))
                                ((asinp exp) (make-division 1 (make-expt (make-difference 1 (make-expt (second exp) 2)) 1/2)))
                                ((cosp exp) (make-negation `(sin ,(second exp))))
@@ -489,7 +494,7 @@
                  (power (third exp)))
              (if (eql base wrt)
                  (simplify `(/ (expt ,base (+ ,power 1)) (+ ,power 1)))
-                 (simplify `(/ ,exp (* ,(diff wrt power) (ln ,base)))))))
+                 (simplify `(/ ,exp (* ,(diff wrt power) (log ,base)))))))
           ((productp exp)
            (let (u du/dx vdx)
              (flet ((function-order (func)
@@ -497,8 +502,8 @@
                         (list (cond
                                 ;; arcsin, arccos, arctan
                                 ((atrigp func) 0)
-                                ;; ln, log
-                                ((or (eql (first func) 'ln) (eql (first func) 'log)) 1)
+                                ;; log
+                                ((eql (first func) 'log) 1)
                                 ;; x^1, x^2, ...
                                 ((and (powp func) (eql (third func) wrt)) 2)
                                 ;; sin, cos, tan
@@ -552,17 +557,19 @@
              (peek ()
                (if (< position (length string))
                    (schar string position)
-                   nil))
+                   #\0))
              (shit (symbol)
                (push symbol result))
              (identify-functions ()
                (loop with start = position
                      for x = (peek)
-                     while (and x (alphanumericp x))
+                     while (and (not (char= x #\0)) (alphanumericp x))
                      do (eat)
+                        (when (and (digit-char-p x) (alpha-char-p (peek)))
+                          (error "You need to put a space between variables/functions and numbers.~%... ~a ...~%No, I won't do this for you" (subseq string (max 0 (- position 3)) (min (length string) (+ position 3)))))
                      finally (return (read-from-string (subseq string start position))))))
       (loop for x = (peek)
-            while x
+            until (char= x #\0)
             do (case x
                  (#\+ (shit '+) (eat))
                  (#\- (shit '-) (eat))
@@ -571,6 +578,7 @@
                  (#\^ (shit 'expt) (eat))
                  (#\( (shit '|(|) (eat))
                  (#\) (shit '|)|) (eat))
+                 (#\e (shit '(exp 1)) (eat))
                  ((#\space) (eat))
                  (t (shit (identify-functions))))
             finally (return (reverse result))))))
@@ -578,7 +586,7 @@
 (defun notation (exp)
   (labels ((prefix-binding-power (op)
              (case op
-               ((ln sin asin cos acos tan atan) 5)
+               ((log sin asin cos acos tan atan) 5)
                ((+ - ) 5)
                (t (error "wat is this (prefix-binding-power): ~a" op))))
            (infix-binding-power (op)
@@ -594,7 +602,7 @@
                                   (|(| (prog1 (infix->prefix 0)
                                          (unless (eq (pop exp) '|)|)
                                            (error "No closing parenthesis somewhere lol"))))
-                                  ((+ - * / expt ln sin asin cos acos tan atan) (list lhs (infix->prefix (prefix-binding-power lhs))))
+                                  ((+ - * / expt log sin asin cos acos tan atan) (list lhs (infix->prefix (prefix-binding-power lhs))))
                                   (t lhs)))
                    for op = (car exp)
                    do (unless op (loop-finish))
