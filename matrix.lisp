@@ -47,9 +47,10 @@
                  (d (get-atom-matrix matrix 1 1)))
              `(- (* ,a ,d) (* ,b ,c))))
           ((>= n (1- (row-len matrix)))
-           (when (oddp (row-len matrix))
-             (list (gen-atom matrix (1- (row-len matrix))))))
-          (t (append (when (zerop n) '(+))
+           (if (oddp (row-len matrix))
+               (list (gen-atom matrix (1- (row-len matrix))))
+               nil))
+          (t (append (if (zerop n) '(+) nil)
                      (cons (list '- (gen-atom matrix n) (gen-atom matrix (1+ n)))
                            (get-determinant-matrix matrix (+ 2 n))))))))
 
@@ -147,8 +148,8 @@
 (defun expp (exp)
   (and (listp exp) (eq (car exp) 'exp)))
 
-(defun lnp (exp)
-  (and (listp exp) (eq (car exp) 'ln)))
+(defun logp (exp)
+  (and (listp exp) (eq (car exp) 'log)))
 
 (defun sinp (exp)
   (and (listp exp) (eq (car exp) 'sin)))
@@ -177,11 +178,6 @@
 (defun funp (exp)
   (and (listp exp) (eq (car exp) 'funcall)))
 
-(defun ln (number)
-  (typecase number
-    (number (log number (exp 1)))
-    (t `(function ln ,number))))
-
 (defun flatten (lst rule)
   (labels ((rflatten (lst1 acc)
              (dolist (el lst1)
@@ -190,6 +186,9 @@
                    (push el acc)))
              acc))
     (reverse (rflatten (cdr lst) nil))))
+
+(defun multiplep (symbol product)
+  (exp-equal symbol (third product)))
 
 ;; wow this doesn't work
 ;; FIXME
@@ -205,7 +204,8 @@
            (not (set-exclusive-or a b))))
         ((and (differencep x) (differencep y))
          (and (exp-equal (second x) (second y))
-              (exp-equal (third x) (third y))))))
+              (exp-equal (third x) (third y))))
+        (t (tree-equal x y))))
 
 (defun make-product (a b)
   (cond ((or (eql 0 a) (eql 0 b)) 0)
@@ -260,6 +260,11 @@
          (let ((b1 (second b))
                (b2 (third b)))
            (make-division (make-product a b1) b2)))
+
+        ((and (numberp a) (sump b))
+         (let ((b1 (second b))
+               (b2 (third b)))
+           (make-sum (make-product a b1) (make-product a b2))))
         
         ((numberp a) (list '* a b))
         (t (list '* b a))))
@@ -297,7 +302,17 @@
         ((and (divisionp a) (divisionp b)
               (exp-equal (third a) (third b)))
          (make-division (make-sum (second a) (second b)) (third a)))
-        
+
+        ((sump a)
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (cond ((exp-equal a2 b)
+                  (make-sum a1 (make-product 2 b)))
+                 ((and (productp a2) (multiplep b a2))
+                  (make-sum a1 (make-product (make-sum 1 (second a2)) b)))
+                 (t
+                  (list '+ a b)))))
+
         (t (list '+ a b))))
 
 (defun make-negation (a)
@@ -347,6 +362,22 @@
                  ((exp-equal a2 b) a1)
                  (t (list '/ a b)))))
 
+        ((and (divisionp a) (numberp b))
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (cond ((exp-equal a2 b)
+                  (make-division a1 (make-product a2 b)))
+                 (t (list '/ a b)))))
+
+        ((and (divisionp a) (productp b))
+         (let ((a1 (second a))
+               (a2 (third a))
+               (b1 (second b))
+               (b2 (third b)))
+           (cond ((exp-equal a1 b1) (make-division 1 (make-product a2 b2)))
+                 ((exp-equal a1 b2) (make-division 1 (make-product a2 b1)))
+                 (t (list '/ a b)))))
+
         ((productp b)
          (let ((b1 (second b))
                (b2 (third b)))
@@ -355,11 +386,25 @@
                  (t (list '/ a b))))) 
         (t (list '/ a b))))
 
+(defun make-exp (a)
+  (cond ((productp a)
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (cond ((logp a2)
+                  (make-expt (second a2) a1))
+                 (t (list 'exp a)))))
+        (t (list 'exp a))))
+
 (defun make-expt (a b)
   (cond ((eql 0 a) 0)
         ((eql 0 b) 0)
         ((eql 1 b) a)
         ((eql 1 a) 1)
+        ((eql (exp 1) a) (make-exp b))
+        ((powp a)
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (make-expt a1 (make-product a2 b))))
         ((and (numberp a) (numberp b)) (expt a b))
         (t (list 'expt a b))))
 
@@ -384,7 +429,7 @@
          (make-division (simplify (second exp))
                         (simplify (third exp))))
 
-        ((lnp exp) (if (expp (second exp))
+        ((logp exp) (if (expp (second exp))
                        (second (second exp))
                        exp))
 
@@ -404,14 +449,10 @@
         ((differencep exp)
          (make-difference (diff wrt (second exp)) (diff wrt (third exp))))
         ((powp exp)
-         (cond ((eql (second exp) wrt)
-                (make-product (third exp) (make-expt (second exp) (make-difference (third exp) 1))))
-               ((or (symbolp (second exp)) (numberp (second exp)))
+         (cond ((numberp (second exp))
                 (make-product (diff wrt (third exp)) (make-product (make-log (second exp)) exp)))
-               (t (error "erm, wut. is this is missed case?:  ~a" exp))))
-        ((lnp exp) (make-product (diff wrt (second exp)) (make-division 1 (second exp))))
-        ((sinp exp) (make-product (diff wrt (second exp)) `(cos ,(second exp))))
-        ((cosp exp) (make-negation (make-product (diff wrt (second exp)) `(sin ,(second exp)))))
+               ;; don't simplify this expression before derivating
+               (t (diff wrt `(exp ,(make-product (make-log (second exp)) (third exp)))))))
         ((productp exp)
          (let ((f (second exp))
                (g (third exp)))
@@ -425,7 +466,17 @@
                           (make-product g g))))
 
 
-        (t (error "wot: ~a" exp))))
+        (t (make-product (diff wrt (second exp))
+                         (cond ((expp exp) (make-exp (second exp)))
+                               ((logp exp) (make-division 1 (second exp)))
+                               ((sinp exp) `(cos ,(second exp)))
+                               ((asinp exp) (make-division 1 (make-expt (make-difference 1 (make-expt (second exp) 2)) 1/2)))
+                               ((cosp exp) (make-negation `(sin ,(second exp))))
+                               ((acosp exp) (make-negation (make-division 1 (make-expt (make-difference 1 (make-expt (second exp) 2)) 1/2))))
+                               ((tanp exp) (make-sum 1 (make-expt exp 2)))
+                               ((atanp exp) (make-division 1 (make-sum 1 (make-expt (second exp) 2))))
+                               (t
+                                (error "I dont know how to differentiate this expression: ~a" exp)))))))
 
 (defun indefinite-integral (wrt exp)
   (let ((exp (simplify exp)))
@@ -443,7 +494,7 @@
                  (power (third exp)))
              (if (eql base wrt)
                  (simplify `(/ (expt ,base (+ ,power 1)) (+ ,power 1)))
-                 (simplify `(/ ,exp (* ,(diff wrt power) (ln ,base)))))))
+                 (simplify `(/ ,exp (* ,(diff wrt power) (log ,base)))))))
           ((productp exp)
            (let (u du/dx vdx)
              (flet ((function-order (func)
@@ -451,8 +502,8 @@
                         (list (cond
                                 ;; arcsin, arccos, arctan
                                 ((atrigp func) 0)
-                                ;; ln, log
-                                ((or (eql (first func) 'ln) (eql (first func) 'log)) 1)
+                                ;; log
+                                ((eql (first func) 'log) 1)
                                 ;; x^1, x^2, ...
                                 ((and (powp func) (eql (third func) wrt)) 2)
                                 ;; sin, cos, tan
@@ -495,63 +546,77 @@
 (defun x* (v1 v2)
   (get-determinant-matrix `((i j k) ,v1 ,v2)))
 
+(defun lex (string)
+  (let ((position 0)
+        (result nil))
+    (labels ((eat ()
+               (prog1 (if (< position (length string))
+                          (schar string position)
+                          nil)
+                 (incf position)))
+             (peek ()
+               (if (< position (length string))
+                   (schar string position)
+                   #\0))
+             (shit (symbol)
+               (push symbol result))
+             (identify-functions ()
+               (loop with start = position
+                     for x = (peek)
+                     while (and (not (char= x #\0)) (alphanumericp x))
+                     do (eat)
+                        (when (and (digit-char-p x) (alpha-char-p (peek)))
+                          (error "You need to put a space between variables/functions and numbers.~%... ~a ...~%No, I won't do this for you" (subseq string (max 0 (- position 3)) (min (length string) (+ position 3)))))
+                     finally (return (read-from-string (subseq string start position))))))
+      (loop for x = (peek)
+            until (char= x #\0)
+            do (case x
+                 (#\+ (shit '+) (eat))
+                 (#\- (shit '-) (eat))
+                 (#\* (shit '*) (eat))
+                 (#\/ (shit '/) (eat))
+                 (#\^ (shit 'expt) (eat))
+                 (#\( (shit '|(|) (eat))
+                 (#\) (shit '|)|) (eat))
+                 (#\e (shit '(exp 1)) (eat))
+                 ((#\space) (eat))
+                 (t (shit (identify-functions))))
+            finally (return (reverse result))))))
+
 (defun notation (exp)
-  (let (variables)
-    (labels ((prefix-binding-power (op)
-               (case op
-                 ((+ -) 5)
-                 (t (error "wat is this (prefix-binding-power): ~a" op))))
-             (infix-binding-power (op)
-               (case op
-                 ((+ -) (values 1 2))
-                 ((* /) (values 3 4))
-                 ((expt) (values 5 6))
-                 (|)| (values nil nil '|)|))
-                 (t (values 3 4 'implicit-*))))
-             (infix->prefix (min-bp)
-               (loop with lhs = (let ((lhs (pop exp)))
-                                  (case lhs
-                                    (|(| (prog1 (infix->prefix 0)
-                                           (unless (eq (pop exp) '|)|)
-                                             (error "No closing parenthesis somewhere lol"))))
-                                    ((+ - * / expt) (list lhs (infix->prefix (prefix-binding-power lhs))))
-                                    (t lhs)))
-                     for op = (car exp)
-                     do (unless op (loop-finish))
-                        (multiple-value-bind (lhs-bp rhs-bp special) (infix-binding-power op)
-                          (cond ((or (eq special '|)|) (< lhs-bp min-bp))
-                                 (loop-finish))
-                                ((eq special 'implicit-*)
-                                 (setf op '*))
-                                (t
-                                 (pop exp)))
-                          (setf lhs (list op lhs (infix->prefix rhs-bp))))
-                     finally (return lhs)))
-             (lex (exp)
-               (loop for x across exp
-                     append (cond
-                              ((char= #\e x) (list (exp 1)))
-                              ((alpha-char-p x)
-                               (let ((var (read-from-string (string x))))
-                                 (pushnew var variables)
-                                 (list var)))
-                              ((digit-char-p x)
-                               (list (read-from-string (string x))))
+  (labels ((prefix-binding-power (op)
+             (case op
+               ((log sin asin cos acos tan atan) 5)
+               ((+ - ) 5)
+               (t (error "wat is this (prefix-binding-power): ~a" op))))
+           (infix-binding-power (op)
+             (case op
+               ((+ -) (values 1 2))
+               ((* /) (values 3 4))
+               ((expt) (values 5 6))
+               (|)| (values nil nil '|)|))
+               (t (values 3 4 'implicit-*))))
+           (infix->prefix (min-bp)
+             (loop with lhs = (let ((lhs (pop exp)))
+                                (case lhs
+                                  (|(| (prog1 (infix->prefix 0)
+                                         (unless (eq (pop exp) '|)|)
+                                           (error "No closing parenthesis somewhere lol"))))
+                                  ((+ - * / expt log sin asin cos acos tan atan) (list lhs (infix->prefix (prefix-binding-power lhs))))
+                                  (t lhs)))
+                   for op = (car exp)
+                   do (unless op (loop-finish))
+                      (multiple-value-bind (lhs-bp rhs-bp special) (infix-binding-power op)
+                        (cond ((or (eq special '|)|) (< lhs-bp min-bp))
+                               (loop-finish))
+                              ((eq special 'implicit-*)
+                               (setf op '*))
                               (t
-                               (case x
-                                 (#\+ '(+))
-                                 (#\- '(-))
-                                 (#\* '(*))
-                                 (#\/ '(/))
-                                 (#\^ '(expt))
-                                 (#\( '(|(|))
-                                 (#\) '(|)|))
-                                 ((#\space))
-                                 (t (error "wot in tarnation is '~a' doing here" x))))))))
-      (setf exp (lex exp))
-      (values (infix->prefix 0) variables))))
-
-
+                               (pop exp)))
+                        (setf lhs (list op lhs (infix->prefix rhs-bp))))
+                   finally (return lhs))))
+    (setf exp (lex exp))
+    (infix->prefix 0)))
 
 (defun equation (e1 e2)
   (let ((e1 (simplify e1))
