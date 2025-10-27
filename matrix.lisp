@@ -209,7 +209,8 @@
            (not (set-exclusive-or a b))))
         ((and (differencep x) (differencep y))
          (and (exp-equal (second x) (second y))
-              (exp-equal (third x) (third y))))))
+              (exp-equal (third x) (third y))))
+        (t (tree-equal x y))))
 
 (defun make-product (a b)
   (cond ((or (eql 0 a) (eql 0 b)) 0)
@@ -370,7 +371,17 @@
          (let ((a1 (second a))
                (a2 (third a)))
            (cond ((exp-equal a2 b)
-                  (make-division a1 (make-product a2 b))))))
+                  (make-division a1 (make-product a2 b)))
+                 (t (list '/ a b)))))
+
+        ((and (divisionp a) (productp b))
+         (let ((a1 (second a))
+               (a2 (third a))
+               (b1 (second b))
+               (b2 (third b)))
+           (cond ((exp-equal a1 b1) (make-division 1 (make-product a2 b2)))
+                 ((exp-equal a1 b2) (make-division 1 (make-product a2 b1)))
+                 (t (list '/ a b)))))
 
         ((productp b)
          (let ((b1 (second b))
@@ -385,6 +396,10 @@
         ((eql 0 b) 0)
         ((eql 1 b) a)
         ((eql 1 a) 1)
+        ((powp a)
+         (let ((a1 (second a))
+               (a2 (third a)))
+           (make-expt a1 (make-product a2 b))))
         ((and (numberp a) (numberp b)) (expt a b))
         (t (list 'expt a b))))
 
@@ -434,9 +449,6 @@
                ((or (symbolp (second exp)) (numberp (second exp)))
                 (make-product (diff wrt (third exp)) (make-product (make-log (second exp)) exp)))
                (t (error "erm, wut. is this is missed case?:  ~a" exp))))
-        ((lnp exp) (make-product (diff wrt (second exp)) (make-division 1 (second exp))))
-        ((sinp exp) (make-product (diff wrt (second exp)) `(cos ,(second exp))))
-        ((cosp exp) (make-negation (make-product (diff wrt (second exp)) `(sin ,(second exp)))))
         ((productp exp)
          (let ((f (second exp))
                (g (third exp)))
@@ -450,7 +462,16 @@
                           (make-product g g))))
 
 
-        (t (error "wot: ~a" exp))))
+        (t (make-product (diff wrt (second exp))
+                         (cond ((lnp exp) (make-division 1 (second exp)))
+                               ((sinp exp) `(cos ,(second exp)))
+                               ((asinp exp) (make-division 1 (make-expt (make-difference 1 (make-expt (second exp) 2)) 1/2)))
+                               ((cosp exp) (make-negation `(sin ,(second exp))))
+                               ((acosp exp) (make-negation (make-division 1 (make-expt (make-difference 1 (make-expt (second exp) 2)) 1/2))))
+                               ((tanp exp) (make-sum 1 (make-expt exp 2)))
+                               ((atanp exp) (make-division 1 (make-sum 1 (make-expt (second exp) 2))))
+                               (t
+                                (error "I dont know how to differentiate this expression: ~a" exp)))))))
 
 (defun indefinite-integral (wrt exp)
   (let ((exp (simplify exp)))
