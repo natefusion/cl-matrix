@@ -584,6 +584,21 @@
 (defun prefix->infix-matrix (m)
   (mapcar (lambda (x) (mapcar (lambda (y) (prefix->infix y)) x)) m))
 
+
+(defmacro eval-exp-with-bindings (bindings exp)
+  (let* ((vars (mapcar #'car bindings))
+         (vals (mapcar #'cadr bindings)))
+    `(let ((form ,exp))
+       (progv (list ,@(mapcar (lambda (s) `(quote ,s)) vars))
+              (list ,@vals)
+         (eval form)))))
+
+
+(defmacro eval-matrix-with-bindings (bindings m)
+  `(mapcar (lambda (x)
+             (mapcar (lambda (y) (eval-exp-with-bindings ,bindings y)) x))
+           ,m))
+
 (defun eval-matrix (m)
   (mapcar (lambda (x) (mapcar (lambda (y) (eval y)) x)) m))
 
