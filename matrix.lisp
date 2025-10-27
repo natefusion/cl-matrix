@@ -364,9 +364,9 @@
         (t (list 'expt a b))))
 
 (defun make-log (a)
-  (cond ((numberp a) (log a))
-        ((eql a 'e) 1)
+  (cond ((eql a 'e) 1)
         ((eql a (exp 1)) 1)
+        ((numberp a) (log a))
         (t (list 'log a))))
 
 (defun simplify (exp)
@@ -532,23 +532,25 @@
                      finally (return lhs)))
              (lex (exp)
                (loop for x across exp
-                     append (cond ((alpha-char-p x)
-                                   (let ((var (read-from-string (string x))))
-                                     (pushnew var variables)
-                                     (list var)))
-                                  ((digit-char-p x)
-                                   (list (read-from-string (string x))))
-                                  (t
-                                   (case x
-                                     (#\+ '(+))
-                                     (#\- '(-))
-                                     (#\* '(*))
-                                     (#\/ '(/))
-                                     (#\^ '(expt))
-                                     (#\( '(| (|))
-                                     (#\) '(|) |))
-                                     ((#\space))
-                                     (t (error "wot in tarnation is '~a' doing here" x))))))))
+                     append (cond
+                              ((char= #\e x) (list (exp 1)))
+                              ((alpha-char-p x)
+                               (let ((var (read-from-string (string x))))
+                                 (pushnew var variables)
+                                 (list var)))
+                              ((digit-char-p x)
+                               (list (read-from-string (string x))))
+                              (t
+                               (case x
+                                 (#\+ '(+))
+                                 (#\- '(-))
+                                 (#\* '(*))
+                                 (#\/ '(/))
+                                 (#\^ '(expt))
+                                 (#\( '(|(|))
+                                 (#\) '(|)|))
+                                 ((#\space))
+                                 (t (error "wot in tarnation is '~a' doing here" x))))))))
       (setf exp (lex exp))
       (values (infix->prefix 0) variables))))
 
