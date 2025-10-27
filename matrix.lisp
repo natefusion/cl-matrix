@@ -74,7 +74,7 @@
                          ,(list (if (evenp (+ row col)) '+ '-)
                                 (get-determinant-matrix (gen-matrix matrix col row)))))))))
 
-(defun op? (exp)
+(defun binary-op? (exp)
   (or (eq exp '+)
       (eq exp '*)
       (eq exp '/)
@@ -94,10 +94,10 @@
 
 (defun prefix->infix (exp &optional op)
   (cond ((atom exp) exp)
-        ((op? (car exp))
+        ((binary-op? (car exp))
          (prefix->infix (append (inv? exp) (neg? exp) (cdr exp)) (car exp)))
         (t (let ((next (prefix->infix (cdr exp) op)))
-             (cons (prefix->infix (car exp)) (when next (cons (op-transform op) next)))))))
+             (cons (prefix->infix (car exp)) (when next (if op (cons (op-transform op) next) next)))))))
 
 ;; (defun pretty-print (exp)
 ;;   (loop with op = (first exp)
@@ -141,9 +141,6 @@
 (defun divisionp (exp)
   (and (listp exp) (eq (car exp) '/)))
 
-(defun funp (exp)
-  (and (listp exp) (eq (car exp) 'funcall)))
-
 (defun powp (exp)
   (and (listp exp) (eq (car exp) 'expt)))
 
@@ -176,6 +173,9 @@
 
 (defun atrigp (exp)
   (or (asinp exp) (acosp exp) (atanp exp)))
+
+(defun funp (exp)
+  (and (listp exp) (eq (car exp) 'funcall)))
 
 (defun ln (number)
   (typecase number
@@ -323,10 +323,10 @@
         (t (list '- a b))))
 
 (defun make-division (a b)
-  (cond ((and (numberp a) (numberp b)) (/ a b))
-        ((eql 0 a) 0)
+  (cond ((eql 0 a) 0)
         ((eql 1 b) a)
         ((eql -1 b) (make-negation a))
+        ((and (numberp a) (numberp b)) (/ a b))
         ((exp-equal a b) 1)
         
         ((and (productp a) (productp b))
@@ -356,11 +356,11 @@
         (t (list '/ a b))))
 
 (defun make-expt (a b)
-  (cond ((and (numberp a) (numberp b)) (expt a b))
-        ((eql 0 a) 0)
+  (cond ((eql 0 a) 0)
         ((eql 0 b) 0)
         ((eql 1 b) a)
         ((eql 1 a) 1)
+        ((and (numberp a) (numberp b)) (expt a b))
         (t (list 'expt a b))))
 
 (defun make-log (a)
@@ -391,8 +391,8 @@
         ((powp exp) (if (expp (second exp))
                         `(exp ,(third exp))
                         exp))
-        ((funp exp)
-         (list (first exp) (second exp) (simplify (third exp))))
+        ((null (third exp))
+         (list (first exp) (simplify (second exp))))
         (t exp)))
 
 (defun diff (wrt exp)
@@ -409,12 +409,9 @@
                ((or (symbolp (second exp)) (numberp (second exp)))
                 (make-product (diff wrt (third exp)) (make-product (make-log (second exp)) exp)))
                (t (error "erm, wut. is this is missed case?:  ~a" exp))))
-        ((funp exp)
-         (case (second (second exp))
-           ((ln) (make-product (diff wrt (third exp)) (make-division 1 (third exp))))
-           ((sin) `(funcall 'cos ,(third exp)))
-           ((cos) `(- (funcall 'sin ,(third exp))))
-           (t (error "Tried to differentiate unknown function: ~a" (second exp)))))
+        ((lnp exp) (make-product (diff wrt (second exp)) (make-division 1 (second exp))))
+        ((sinp exp) (make-product (diff wrt (second exp)) `(cos ,(second exp))))
+        ((cosp exp) (make-negation (make-product (diff wrt (second exp)) `(sin ,(second exp)))))
         ((productp exp)
          (let ((f (second exp))
                (g (third exp)))
