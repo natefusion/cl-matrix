@@ -225,7 +225,7 @@
 
         ((and (powp a) (powp b))
          (if (eql (second a) (second b))
-             (list 'expt (second a) (+ (third a) (third b)))
+             (list 'expt (second a) (make-sum (third a) (third b)))
              (list '* a b)))
 
         ((and (powp a) (eql (second a) b))
